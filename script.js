@@ -1,7 +1,8 @@
 // script.js
 
 // --- CONFIG & CONSTANTS ---
-const MODEL_NAME = "gemini-1.5-flash-latest"; // 최신 모델 권장
+// 사용자가 요청한 모델명 고정 (향후 수정 시에도 절대 변경 금지)
+const MODEL_NAME = "gemini-flash-latest"; 
 const SESSION_KEY_API = "research_lab_api_key_v31";
 const LOCAL_STORAGE_KEY = "research_lab_saved_state_v31";
 
@@ -63,7 +64,7 @@ let state = {
   step: -1, 
   maxStepReached: -1, 
   researchTopic: "",
-  aiCategories: [], // 개편된 페르소나 카테고리 데이터 저장
+  aiCategories: [], 
   manualPersonas: [], 
   selectedPersonaId: null,
   aiSurveys: [], 
@@ -122,7 +123,11 @@ async function callGemini(systemPrompt, userPrompt) {
 
       if (response.ok) {
         const data = await response.json();
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        let text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+        
+        // JSON 파싱 에러 방지를 위한 마크다운 백틱 제거 로직 추가
+        text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+        
         setState({ isAnalyzing: false });
         return JSON.parse(text);
       }
@@ -134,10 +139,11 @@ async function callGemini(systemPrompt, userPrompt) {
       throw new Error(errorData.error?.message || 'API Error');
 
     } catch (e) {
+      console.error("API Error:", e);
       retries++;
       if (retries === maxRetries) {
         setState({ isAnalyzing: false, errorMsg: "AI 분석 중 문제가 발생했습니다." });
-        showToast("오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+        showToast("오류가 발생했습니다. API 키가 유효한지 확인 후 다시 시도해 주세요.");
         return null;
       }
       const delay = Math.pow(2, retries) * 1000;
@@ -154,8 +160,10 @@ const Actions = {
     if (!keyToUse) { showToast("API 키를 입력해 주세요."); return; }
     
     setState({ apiKey: keyToUse, isAnalyzing: true });
+    
+    // 연결 테스트 호출
     const test = await callGemini("Return JSON: {\"status\":\"OK\"}", "Test Connection");
-    if (test) {
+    if (test && test.status === "OK" || test) {
       sessionStorage.setItem(SESSION_KEY_API, keyToUse);
       setState({ step: 0 });
     } else {
