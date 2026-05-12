@@ -59,7 +59,6 @@ const PROMPTS = {
   [RULE] Easy Korean. No markdown bold (**). 모든 문장은 존댓말을 사용해 주세요.
   Return JSON: { "q": "${question}", "a": "Answer" }.`,
 
-  // 새로 추가된 프롬프트: 추론 (Inferences) 도출
   GENERATE_INFERENCES: (topic, persona, qaText, userInsight) => `You are a Senior UX Strategist. Topic: "${topic}". Persona: "${persona.name}".
   [선택된 주요 대화]
   ${qaText}
@@ -72,7 +71,7 @@ const PROMPTS = {
   - 전문적이고 명확한 한국어 존댓말을 사용해 주세요.
   Return JSON: { "inferences": [{ "id": "uuid", "title": "추론 제목", "description": "3줄 이상의 상세한 설명..." }] }`,
 
-  // 업데이트된 프롬프트: 컨셉 도출 시 선택된 '추론' 반영 및 핵심 가치 항목 추가
+  // 핵심 가치 2줄 이상, 컨셉 내용 4줄 이상으로 규칙 강화
   GENERATE_CONCEPTS: (topic, persona, qaText, userInsight, inference, perspective) => `You are a Senior UX Strategist. Topic: "${topic}". Persona: "${persona.name}".
   [선택된 주요 대화]
   ${qaText}
@@ -83,10 +82,10 @@ const PROMPTS = {
 
   위 내용과 선택된 추론을 바탕으로 "${perspective}" 관점에서 디자인 컨셉 인사이트를 정확히 3개 도출해 주세요.
   [STRICT RULE]
-  - 각 컨셉에는 반드시 도출된 "핵심 가치(coreValue)" 항목이 포함되어야 합니다.
-  - 각 컨셉의 설명(description)은 반드시 3줄 이상의 분량으로 상세하게 작성해 주세요.
+  - 각 컨셉에는 반드시 도출된 "핵심 가치(coreValue)" 항목이 포함되어야 하며, 2줄 이상의 상세한 문장으로 설명해 주세요.
+  - 각 컨셉의 설명(description)은 반드시 4줄 이상의 분량으로 매우 상세하고 풍부하게 작성해 주세요.
   - 전문적이고 명확한 한국어 존댓말을 사용해 주세요.
-  Return JSON: { "concepts": [{ "id": "uuid", "title": "Concept Title", "coreValue": "핵심 가치 요약", "description": "3줄 이상의 상세한 설명..." }] }`,
+  Return JSON: { "concepts": [{ "id": "uuid", "title": "Concept Title", "coreValue": "2줄 이상의 핵심 가치 설명", "description": "4줄 이상의 매우 상세한 설명..." }] }`,
 
   GENERATE_SCENARIO: (topic, persona, concept) => `You are a Senior UX Designer. Topic: "${topic}". Persona: "${persona.name}".
   [선택된 디자인 컨셉]
@@ -114,8 +113,8 @@ let state = {
   errorMsg: null,
   selectedQaIndices: [],
   userInsight: "",
-  currentInferences: [], // 추가됨
-  selectedInferenceId: null, // 추가됨
+  currentInferences: [], 
+  selectedInferenceId: null, 
   currentConcepts: [],
   currentPerspective: "종합적 관점",
   selectedConceptId: null,
@@ -319,7 +318,6 @@ const Actions = {
     state.userInsight = text; 
   },
 
-  // 새로 추가된 Action: 추론 생성
   async generateInferences() {
     const curH = state.history[state.history.length - 1];
     const persona = getAllPersonas().find(p => p.id === curH.personaId);
@@ -337,11 +335,21 @@ const Actions = {
     );
     if (res && res.inferences) {
       const inferencesWithId = res.inferences.map((inf, i) => ({ ...inf, id: `inf-${Date.now()}-${i}` }));
-      setState({ currentInferences: inferencesWithId, step: 7, selectedInferenceId: null, userInsight: userInsightVal });
+      
+      // History에 누적 기록
+      const historyCopy = [...state.history];
+      historyCopy[historyCopy.length - 1].inferences = inferencesWithId;
+      
+      setState({ 
+        currentInferences: inferencesWithId, 
+        step: 7, 
+        selectedInferenceId: null, 
+        userInsight: userInsightVal,
+        history: historyCopy
+      });
     }
   },
 
-  // 업데이트된 Action: 추론 기반 컨셉 도출
   async generateConcepts(perspective = "종합적 관점") {
     const curH = state.history[state.history.length - 1];
     const persona = getAllPersonas().find(p => p.id === curH.personaId);
@@ -361,7 +369,18 @@ const Actions = {
     );
     if (res && res.concepts) {
       const conceptsWithId = res.concepts.map((c, i) => ({ ...c, id: `c-${Date.now()}-${i}` }));
-      setState({ currentConcepts: conceptsWithId, step: 8, selectedConceptId: null });
+      
+      // History에 누적 기록
+      const historyCopy = [...state.history];
+      historyCopy[historyCopy.length - 1].perspective = perspective;
+      historyCopy[historyCopy.length - 1].concepts = conceptsWithId;
+
+      setState({ 
+        currentConcepts: conceptsWithId, 
+        step: 8, 
+        selectedConceptId: null,
+        history: historyCopy
+      });
     }
   },
 
@@ -377,44 +396,63 @@ const Actions = {
       "Generate Scenario"
     );
     if (res && res.scenario) {
-      setState({ currentScenario: res.scenario, step: 9 });
+      // History에 누적 기록
+      const historyCopy = [...state.history];
+      historyCopy[historyCopy.length - 1].selectedConcept = concept;
+      historyCopy[historyCopy.length - 1].scenario = res.scenario;
+
+      setState({ 
+        currentScenario: res.scenario, 
+        step: 9,
+        history: historyCopy
+      });
     }
   }
 };
 window.Actions = Actions;
 
 // --- CLIPBOARD UTILITIES ---
+// 누적된 모든 타겟의 정보를 하나의 리포트로 출력하도록 수정
 function copyReportToClipboard() {
-  let txt = "==================================================\n   RESEARCH LAB. 분석 리포트\n==================================================\n\n";
-  txt += `[1. 리서치 주제]\n- ${state.researchTopic || "설정된 주제 없음"}\n\n`;
+  let txt = "==================================================\n   RESEARCH LAB. 분석 종합 리포트\n==================================================\n\n";
+  txt += `[리서치 주제]\n- ${state.researchTopic || "설정된 주제 없음"}\n\n`;
   
   if (state.history.length > 0) {
-    txt += `[2. 인터뷰 세션 기록]\n`;
     state.history.forEach((h, idx) => {
       const persona = getAllPersonas().find(p => p.id === h.personaId);
-      txt += `\n--- 인터뷰 #${idx+1} (${persona?.name}) ---\n요약: ${h.result.summary}\n\n`;
-      h.result.qaPairs.forEach((qa, qidx) => { txt += `Q${qidx+1}: ${qa.q}\nA: ${qa.a}\n\n`; });
-      txt += `[주요 인사이트]\n${h.result.keyInsights}\n`;
-    });
-  }
+      txt += `==================================================\n`;
+      txt += ` 타겟 #${idx+1} : ${persona?.name}\n`;
+      txt += `==================================================\n`;
+      
+      txt += `[인터뷰 요약]\n${h.result.summary}\n\n`;
+      
+      txt += `[대화 내용 (Q&A)]\n`;
+      h.result.qaPairs.forEach((qa, qidx) => { 
+        txt += `Q${qidx+1}: ${qa.q}\nA: ${qa.a}\n\n`; 
+      });
+      
+      txt += `[AI Key Insights]\n${h.result.keyInsights}\n\n`;
 
-  if (state.currentInferences.length > 0 && state.step >= 7) {
-    txt += `\n[3. 도출된 핵심 가치 추론]\n`;
-    state.currentInferences.forEach((inf, idx) => {
-      txt += `${idx+1}. ${inf.title}\n   ${inf.description}\n\n`;
-    });
-  }
+      if (h.inferences && h.inferences.length > 0) {
+        txt += `[도출된 핵심 가치 추론]\n`;
+        h.inferences.forEach((inf, i) => {
+          txt += `${i+1}. ${inf.title}\n   ${inf.description}\n\n`;
+        });
+      }
 
-  if (state.currentConcepts.length > 0 && state.step >= 8) {
-    txt += `\n[4. 도출된 디자인 컨셉 (${state.currentPerspective})]\n`;
-    state.currentConcepts.forEach((c, idx) => {
-      txt += `${idx+1}. ${c.title}\n   핵심 가치: ${c.coreValue}\n   ${c.description}\n\n`;
-    });
-  }
+      if (h.concepts && h.concepts.length > 0) {
+        txt += `[도출된 디자인 컨셉 (${h.perspective || "종합적 관점"})]\n`;
+        h.concepts.forEach((c, i) => {
+          txt += `${i+1}. ${c.title}\n   핵심 가치: ${c.coreValue}\n   ${c.description}\n\n`;
+        });
+      }
 
-  if (state.currentScenario && state.step === 9) {
-    const concept = state.currentConcepts.find(c => c.id === state.selectedConceptId);
-    txt += `\n[5. 컨셉 시나리오 (${concept?.title})]\n${state.currentScenario}\n`;
+      if (h.scenario) {
+        txt += `[컨셉 시나리오 (${h.selectedConcept?.title})]\n${h.scenario}\n\n\n`;
+      }
+    });
+  } else {
+    txt += "저장된 인터뷰 기록이 없습니다.\n";
   }
   
   const textArea = document.createElement("textarea");
@@ -423,7 +461,7 @@ function copyReportToClipboard() {
   textArea.select();
   try {
     document.execCommand('copy');
-    showToast("리포트가 복사되었습니다.");
+    showToast("종합 리포트가 복사되었습니다.");
   } catch (err) {
     showToast("복사 실패.");
   }
@@ -480,7 +518,7 @@ function renderHeader(title, prevStep) {
       </div>
       <div class="flex items-center gap-1">
         ${canGoNext ? `<button onclick="setState({step: ${state.step + 1}})" class="p-2 rounded-full hover:bg-slate-100/80 text-slate-800 transition-all"><i data-lucide="chevron-right" class="w-6 h-6"></i></button>` : ""}
-        <button onclick="copyReportToClipboard()" class="p-2 rounded-full hover:bg-slate-100/80 text-slate-800 transition-all"><i data-lucide="share" class="w-5 h-5"></i></button>
+        <button onclick="copyReportToClipboard()" class="p-2 rounded-full hover:bg-slate-100/80 text-slate-800 transition-all"><i data-lucide="copy" class="w-5 h-5"></i></button>
         <button onclick="setState({step: 0})" class="p-2 rounded-full hover:bg-slate-100/80 text-slate-800 transition-all"><i data-lucide="home" class="w-5 h-5"></i></button>
       </div>
     </header>`;
@@ -794,7 +832,7 @@ function render() {
         </div>`;
       break;
 
-    case 6: // Report (Interview Result & Multi-select Checkboxes)
+    case 6: // Report
       const curH = state.history[state.history.length-1];
       const curPersona = getAllPersonas().find(p => p.id === curH.personaId);
       
@@ -812,13 +850,6 @@ function render() {
             <div class="inline-block px-3 py-1 bg-white/20 rounded-full text-[11px] font-extrabold tracking-widest uppercase mb-4 border border-white/20">Summary</div>
             <h2 class="text-[26px] font-black mb-5 leading-tight text-white">${curPersona.name}</h2>
             <p class="text-blue-50 text-[16px] leading-relaxed whitespace-pre-line font-bold opacity-90">${curH.result.summary}</p>
-          </div>
-
-          <div class="bg-blue-600 p-6 mx-2 rounded-[2rem] mb-10 shadow-md shadow-blue-600/20 text-white">
-            <h3 class="font-black text-[16px] uppercase tracking-wider mb-5 flex items-center gap-2">
-              <i data-lucide="zap" class="w-5 h-5 text-yellow-300"></i> AI Key Insights
-            </h3>
-            <div class="text-blue-50 font-bold text-[16px] leading-relaxed whitespace-pre-line">${curH.result.keyInsights}</div>
           </div>
           
           <div class="space-y-6 mb-12 px-2">
@@ -853,6 +884,13 @@ function render() {
                 <i data-lucide="send" class="w-5 h-5"></i>
               </button>
             </div>
+          </div>
+
+          <div class="bg-blue-600 p-6 mx-2 rounded-[2rem] mb-12 shadow-md shadow-blue-600/20 text-white">
+            <h3 class="font-black text-[16px] uppercase tracking-wider mb-5 flex items-center gap-2">
+              <i data-lucide="zap" class="w-5 h-5 text-yellow-300"></i> AI Key Insights
+            </h3>
+            <div class="text-blue-50 font-bold text-[16px] leading-relaxed whitespace-pre-line">${curH.result.keyInsights}</div>
           </div>
           
           <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
@@ -951,7 +989,7 @@ function render() {
         </div>`;
       break;
 
-    case 9: // Concept Scenario (복사 버튼 추가됨)
+    case 9: // Concept Scenario
       content += `
         <div class="pt-24 px-6 pb-40 animate-fade-in bg-slate-50 min-h-screen">
           ${renderHeader("컨셉 시나리오", 8)}
@@ -972,7 +1010,7 @@ function render() {
 
           <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto space-y-3 z-[60]">
             <button onclick="copyReportToClipboard()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[16px] shadow-lg btn-active flex items-center justify-center gap-2">
-              <i data-lucide="clipboard-copy" class="w-5 h-5"></i> 전체 리포트 복사하기
+              <i data-lucide="copy" class="w-5 h-5"></i> 전체 리포트 복사하기
             </button>
             <button onclick="setState({step: 0})" class="w-full h-14 bg-white border border-slate-200 text-slate-700 rounded-2xl font-bold text-[16px] flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors btn-active shadow-sm">
               <i data-lucide="home" class="w-5 h-5"></i> 처음으로 돌아가기
