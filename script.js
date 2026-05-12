@@ -8,6 +8,7 @@ const LOCAL_STORAGE_KEY = "research_lab_saved_state_v31";
 
 // --- PROMPT TEMPLATES ---
 const PROMPTS = {
+  // 타겟 특성 및 니즈 내용 풍부화 (2줄 상세 특성, 2줄 이상 핵심 니즈)
   GENERATE_PERSONAS: (topic) => `You are a Senior UX/User Researcher with 15 years of experience. 
   Topic: "${topic}". 
   사용자를 다음 4가지 카테고리로 나누고, 각 카테고리별로 특성에 맞는 구체적인 페르소나를 3명씩(총 12명) 제안해 주세요.
@@ -30,8 +31,8 @@ const PROMPTS = {
           {
             "id": "uuid (unique string)",
             "name": "[수식어]: [직업/연령]",
-            "description": "[상세 설명]",
-            "needs": "[구체적인 니즈 및 문제점]"
+            "description": "[2줄 상세 특성 정보 (직업적 전문성, 일상의 리얼리티, 가치관, 디지털 리터러시, 사회적 관계성 및 행동 양식을 포함한 풍부한 맥락 설명 (3-4문장))] \n [줄바꿈 후 상세 내용 계속]",
+            "needs": "[2줄 이상의 구체적인 기능적/정서적/심리적 요구 사항 및 다양하게 제시된 요구사항들]"
           }
         ]
       }
@@ -384,7 +385,7 @@ window.copyReportToClipboard = copyReportToClipboard;
 function showToast(message) {
   const toast = document.createElement("div");
   toast.innerText = message;
-  toast.className = "fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-2xl text-sm font-semibold z-[10000] animate-fade-in shadow-xl backdrop-blur-md bg-opacity-90";
+  toast.className = "fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-2xl text-[16px] font-semibold z-[10000] animate-fade-in shadow-xl backdrop-blur-md bg-opacity-90";
   document.body.appendChild(toast);
   setTimeout(() => {
     toast.style.opacity = '0';
@@ -406,7 +407,7 @@ window.toggleQuestion = toggleQuestion;
 function renderHeader(title, prevStep) {
   const canGoNext = state.step < state.maxStepReached;
   return `
-    <header class="fixed top-0 left-0 right-0 z-50 glass-nav border-b border-slate-200/50 px-6 h-16 flex items-center justify-between max-w-[430px] mx-auto">
+    <header class="fixed top-0 left-0 right-0 z-50 glass-nav border-b border-slate-200/50 px-2 h-16 flex items-center justify-between max-w-[430px] mx-auto">
       <div class="flex items-center gap-1">
         <button onclick="setState({step: ${prevStep}})" class="p-2 -ml-2 rounded-full hover:bg-slate-100/80 transition-all text-slate-800">
           <i data-lucide="chevron-left" class="w-6 h-6"></i>
@@ -427,35 +428,31 @@ function render() {
   
   if (state.isAnalyzing) {
     content = `
-      <div class="fixed inset-0 z-[9999] bg-white/80 backdrop-blur-xl flex flex-col items-center justify-center p-8 text-center max-w-[430px] mx-auto animate-fade-in">
-        <div class="w-16 h-16 border-[5px] border-slate-200 border-t-indigo-600 rounded-full animate-spin mb-6 shadow-lg"></div>
-        <h2 class="text-slate-900 font-extrabold text-2xl tracking-tight mb-2">AI가 분석 중입니다</h2>
-        <p class="text-slate-600 font-bold">사용자의 진심을 발굴하고 있어요...</p>
+      <div class="fixed inset-0 z-[9999] bg-white/80 backdrop-blur-xl flex flex-col items-center justify-center p-2 text-center max-w-[430px] mx-auto animate-fade-in spinner-container">
+        <div class="w-16 h-16 border-[5px] border-slate-200 border-t-blue-600 rounded-full animate-spin mb-6 shadow-lg"></div>
+        <h2 class="text-slate-900 font-extrabold text-2xl tracking-tight mb-2">AI 분석 중</h2>
       </div>`;
   }
 
   switch (state.step) {
     case -1: // API Key
       content += `
-        <div class="min-h-screen flex flex-col items-center justify-center p-8 bg-slate-50 text-center animate-fade-in relative overflow-hidden">
+        <div class="min-h-screen flex flex-col items-center justify-center p-2 bg-slate-50 text-center animate-fade-in relative overflow-hidden">
           <div class="absolute top-[-10%] right-[-20%] w-72 h-72 bg-blue-400/30 rounded-full blur-3xl"></div>
-          <div class="absolute bottom-[-10%] left-[-20%] w-72 h-72 bg-indigo-400/30 rounded-full blur-3xl"></div>
+          <div class="absolute bottom-[-10%] left-[-20%] w-72 h-72 bg-blue-400/30 rounded-full blur-3xl"></div>
           
           <div class="z-10 w-full max-w-sm flex flex-col items-center">
-            <div class="w-20 h-20 bg-gradient-to-br from-indigo-600 to-blue-600 rounded-3xl flex items-center justify-center mb-8 shadow-[0_8px_30px_rgb(79,70,229,0.4)] transform rotate-3">
-              <i data-lucide="sparkles" class="text-white w-10 h-10 transform -rotate-3"></i>
-            </div>
-            <h1 class="hero-title font-black tracking-tight text-slate-900 mb-3">Research<br/>Lab.</h1>
-            <p class="text-slate-600 font-bold mb-12 text-[15px]">디자인 리서치 자동화 도구</p>
+            <h1 class="font-black tracking-tight text-slate-900 mb-3 text-[35px] leading-snug">Design Research<br/>Interview & Insight</h1>
+            <p class="text-slate-600 font-bold mb-12 text-[16px]">디자인 리서치 자동화 도구</p>
             
-            <div class="w-full bg-white p-6 rounded-3xl shadow-md border border-slate-200">
-              <input type="password" id="api-input" class="w-full h-14 bg-slate-50 border border-slate-300 rounded-2xl text-center focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 outline-none text-[16px] font-bold mb-4 transition-all text-slate-800" placeholder="Gemini API Key 입력">
-              <button onclick="Actions.validateKey()" class="w-full h-14 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-[17px] shadow-md btn-active transition-colors">시작하기</button>
-              <div class="mt-5 text-center">
-                <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-indigo-600 font-bold text-[13px] hover:underline underline-offset-4 flex items-center justify-center gap-1">
-                  API Key 발급받기 <i data-lucide="external-link" class="w-3 h-3"></i>
+            <div class="w-full bg-white p-6 rounded-3xl shadow-md border border-slate-200 api-key-form">
+              <div class="mb-5 text-center">
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-blue-600 font-bold text-[16px] hover:underline underline-offset-4 flex items-center justify-center gap-1">
+                  API Key 발급받기
                 </a>
               </div>
+              <input type="password" id="api-input" class="w-full h-14 bg-slate-50 border border-slate-300 rounded-2xl text-center focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none text-[16px] font-bold mb-4 transition-all text-slate-800" placeholder="Gemini API Key 입력">
+              <button onclick="Actions.validateKey()" class="w-full h-14 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-[17px] shadow-md btn-active transition-colors">시작하기</button>
             </div>
           </div>
         </div>`;
@@ -463,23 +460,23 @@ function render() {
 
     case 0: // Home
       content += `
-        <div class="min-h-screen flex flex-col p-8 bg-dark-navy text-white relative overflow-hidden">
-          <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-bl from-indigo-600/40 to-transparent rounded-full blur-3xl transform translate-x-1/3 -translate-y-1/3"></div>
+        <div class="min-h-screen flex flex-col p-2 bg-dark-navy text-white relative overflow-hidden home-page">
+          <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-bl from-blue-600/40 to-transparent rounded-full blur-3xl transform translate-x-1/3 -translate-y-1/3 gradient-blue"></div>
           
           <div class="flex-1 flex flex-col justify-center z-10 animate-fade-in mt-10">
-            <div class="inline-block px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[11px] font-extrabold tracking-widest uppercase w-fit mb-6 border border-white/20 text-indigo-100">
+            <div class="inline-block px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[11px] font-extrabold tracking-widest uppercase w-fit mb-6 border border-white/20 text-blue-100 researcher-badge">
               AI Researcher
             </div>
-            <h1 class="text-[42px] font-black leading-[1.15] tracking-tight mb-6 text-white">사용자의<br/><span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-blue-200">깊은 속마음</span>을<br/>탐색하세요.</h1>
-            <p class="text-slate-300 text-[16px] leading-relaxed font-bold">프로젝트의 방향을 결정지을<br/>가장 핵심적인 인사이트를 도출해 드립니다.</p>
+            <h1 class="text-[42px] font-black leading-[1.15] tracking-tight mb-6">사용자의<br/><span class="text-slate-900">깊은 속마음</span>을<br/><span class="text-blue-600">탐색하세요.</span></h1>
+            <p class="text-slate-900 text-[16px] leading-relaxed font-bold">프로젝트의 방향을 결정지을<br/>가장 핵심적인 인사이트를 도출해 드립니다.</p>
           </div>
           
-          <div class="space-y-4 pb-12 z-10">
-            <button onclick="Actions.loadFromLocal()" class="w-full h-16 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-2xl font-bold text-[17px] flex items-center justify-center gap-3 backdrop-blur-md transition-all btn-active">
-              <i data-lucide="folder-open" class="w-5 h-5 text-indigo-200"></i> 이어하기
+          <div class="space-y-4 pb-12 z-10 button-area">
+            <button onclick="Actions.loadFromLocal()" class="w-full h-16 bg-white/10 hover:bg-white/20 border border-white/20 rounded-2xl font-bold text-[17px] flex items-center justify-center gap-3 backdrop-blur-md transition-all btn-active existing-project-btn text-slate-900">
+              기존 프로젝트 열기
             </button>
-            <button onclick="Actions.startNewProject()" class="w-full h-16 bg-white hover:bg-slate-100 text-slate-900 rounded-2xl font-extrabold text-[17px] shadow-lg flex items-center justify-center gap-2 transition-all btn-active">
-              새 리서치 시작 <i data-lucide="arrow-right" class="w-5 h-5"></i>
+            <button onclick="Actions.startNewProject()" class="w-full h-16 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-extrabold text-[17px] shadow-lg flex items-center justify-center gap-2 transition-all btn-active new-interview-btn">
+              새로운 인터뷰 시작
             </button>
           </div>
         </div>`;
@@ -487,49 +484,48 @@ function render() {
 
     case 1: // Topic
       content += `
-        <div class="pt-24 px-6 min-h-screen flex flex-col animate-fade-in bg-slate-50">
+        <div class="pt-24 px-2 min-h-screen flex flex-col animate-fade-in bg-slate-50 topic-page">
           ${renderHeader("주제 설정", 0)}
           <div class="mb-8">
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900 leading-snug">어떤 사용자 경험을<br/>개선하고 싶으신가요?</h2>
-            <p class="text-slate-600 font-bold text-[15px]">해결하고자 하는 문제나 타겟 시장을 구체적으로 적어주시면 더 정확한 결과를 얻을 수 있습니다.</p>
+            <p class="text-slate-600 font-bold text-[15px]">해결고자 하는 문제나 타겟 시장을 구체적으로 적어주시면 더 정확한 결과를 얻을 수 있습니다.</p>
           </div>
-          <div class="relative bg-white rounded-3xl shadow-sm border border-slate-200 p-2 mb-20">
-            <textarea id="topic-input" class="w-full h-64 p-5 bg-transparent border-none text-[17px] outline-none placeholder:text-slate-400 font-bold leading-relaxed resize-none text-slate-800" placeholder="예: 해외 여행 계획 시 정보의 파편화로 인해 피로도를 느끼는 1인 가구 직장인">${state.researchTopic}</textarea>
+          <div class="relative bg-white rounded-3xl shadow-sm border border-slate-200 p-2 mb-20 text-input-area">
+            <textarea id="topic-input" class="w-full h-64 p-5 bg-transparent border-none text-[17px] outline-none placeholder:text-slate-400 font-bold leading-relaxed resize-none text-slate-800 topic-textarea" placeholder="예: 해외 여행 계획 시 정보의 파편화로 인해 피로도를 느끼는 1인 가구 직장인">${state.researchTopic}</textarea>
           </div>
           
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto z-[60]">
-            <button onclick="const val = document.getElementById('topic-input').value; if(val){ setState({researchTopic: val}); Actions.generatePersonas(); }" class="w-full h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-[17px] shadow-md shadow-indigo-600/30 btn-active">타겟 12명 분석하기</button>
+          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto z-[60] next-btn-area">
+            <button onclick="const val = document.getElementById('topic-input').value; if(val){ setState({researchTopic: val}); Actions.generatePersonas(); }" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-md btn-active generate-btn">타겟 12명 분석하기</button>
           </div>
         </div>`;
       break;
 
     case 2: // Personas (Grouped by Category)
       content += `
-        <div class="pt-24 px-6 pb-64 animate-fade-in bg-slate-50 min-h-screen">
+        <div class="pt-24 px-2 pb-64 animate-fade-in bg-slate-50 min-h-screen personas-page">
           ${renderHeader("타겟 제안", 1)}
           <div class="mb-8">
-            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">4가지 핵심 관점으로<br/>분석했습니다</h2>
-            <p class="text-indigo-700 text-[15px] font-bold">리서치 목적에 맞는 그룹을 탐색해 보세요.</p>
+            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">핵심 인터뷰 타겟을 제안합니다</h2>
+            <p class="text-blue-700 text-[16px] font-bold">4개 카테고리 타겟 General User, Lead User, Extreme User, Desire-Driven User</p>
           </div>
           
-          <div class="space-y-12 mb-12">
+          <div class="space-y-12 mb-12 category-list">
             ${state.aiCategories.map(cat => `
-              <div class="space-y-4">
-                <div class="bg-indigo-100 border border-indigo-200 p-5 rounded-3xl">
-                  <h3 class="font-black text-[18px] text-indigo-900 mb-2 flex items-center gap-2">
-                    <div class="w-2 h-6 bg-indigo-600 rounded-full"></div> ${cat.categoryName}
+              <div class="space-y-4 category-item">
+                <div class="bg-blue-100 border border-blue-200 p-5 rounded-3xl category-header">
+                  <h3 class="font-black text-[18px] text-blue-900 mb-2 flex items-center gap-2">
+                    <div class="w-2 h-6 bg-blue-600 rounded-full"></div> ${cat.categoryName}
                   </h3>
-                  <p class="text-indigo-800 font-bold text-[14px] leading-relaxed">${cat.categoryDesc}</p>
+                  <p class="text-blue-800 font-bold text-[16px] leading-relaxed category-desc">${cat.categoryDesc}</p>
                 </div>
                 
-                <div class="grid gap-4 pl-2 border-l-2 border-indigo-200 ml-4">
+                <div class="grid gap-4 pl-0 border-l-0 border-blue-200 ml-0 persona-list">
                   ${cat.personas.map((p, i) => `
-                    <div class="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden">
-                      <div class="absolute top-0 right-0 bg-slate-100 px-4 py-2 rounded-bl-2xl font-bold text-slate-500 text-xs">Type ${i+1}</div>
-                      <h4 class="font-black text-[20px] text-slate-900 mb-3 mt-2">${p.name}</h4>
-                      <p class="text-[15px] text-slate-700 font-bold mb-5 leading-relaxed whitespace-pre-line">${p.description}</p>
-                      <div class="bg-slate-50 px-4 py-4 rounded-2xl text-[14px] text-slate-700 font-bold border border-slate-200">
-                        <span class="font-extrabold text-indigo-700 block mb-1">핵심 니즈</span>
+                    <div class="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden persona-card">
+                      <h4 class="font-black text-[20px] text-slate-900 mb-3 mt-0 persona-name">${p.name}</h4>
+                      <p class="text-[16px] text-slate-700 font-bold mb-5 leading-relaxed whitespace-pre-line persona-description">${p.description}</p>
+                      <div class="bg-slate-50 px-4 py-4 rounded-2xl text-[16px] text-slate-700 font-bold border border-slate-200 needs-area">
+                        <span class="font-extrabold text-blue-700 block mb-1">핵심 니즈</span>
                         ${p.needs}
                       </div>
                     </div>
@@ -539,17 +535,17 @@ function render() {
             `).join('')}
             
             ${state.manualPersonas.length > 0 ? `
-              <div class="space-y-4">
-                <div class="bg-slate-800 p-5 rounded-3xl">
+              <div class="space-y-4 category-item manual-category">
+                <div class="bg-dark-navy p-5 rounded-3xl category-header">
                   <h3 class="font-black text-[18px] text-white flex items-center gap-2">
-                    <i data-lucide="user-plus" class="w-5 h-5"></i> 사용자 직접 추가
+                    사용자 직접 추가
                   </h3>
                 </div>
-                <div class="grid gap-4 pl-2 border-l-2 border-slate-300 ml-4">
+                <div class="grid gap-4 pl-0 border-l-0 border-dark-navy ml-0 persona-list">
                   ${state.manualPersonas.map((p, i) => `
-                    <div class="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
-                      <h4 class="font-black text-[20px] text-slate-900 mb-3">${p.name}</h4>
-                      <p class="text-[15px] text-slate-700 font-bold whitespace-pre-line">${p.description}</p>
+                    <div class="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm persona-card">
+                      <h4 class="font-black text-[20px] text-slate-900 mb-3 persona-name">${p.name}</h4>
+                      <p class="text-[16px] text-slate-700 font-bold whitespace-pre-line persona-description">${p.description}</p>
                     </div>
                   `).join('')}
                 </div>
@@ -557,17 +553,17 @@ function render() {
             ` : ''}
           </div>
 
-          <div class="space-y-4 mb-10">
+          <div class="space-y-4 mb-10 manual-persona-form">
             <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
-              <h4 class="text-[13px] font-extrabold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2"><i data-lucide="pen-tool" class="w-4 h-4"></i> 직접 타겟 추가</h4>
-              <input type="text" id="manual-p-name" class="w-full p-4 bg-slate-100 border-none rounded-2xl text-[15px] font-bold outline-none mb-3 focus:ring-2 focus:ring-indigo-300 transition-all text-slate-800 placeholder:text-slate-500" placeholder="이름 및 특징 (예: 프로 출장러 김철수)">
-              <textarea id="manual-p-desc" class="w-full p-4 bg-slate-100 border-none rounded-2xl text-[15px] h-28 outline-none resize-none mb-3 focus:ring-2 focus:ring-indigo-300 transition-all text-slate-800 placeholder:text-slate-500 font-bold" placeholder="상세 설명과 니즈를 입력하세요"></textarea>
-              <button onclick="Actions.addManualPersona()" class="w-full h-12 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-[15px] btn-active">목록에 추가</button>
+              <h4 class="text-[16px] font-extrabold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">직접 타겟 추가</h4>
+              <input type="text" id="manual-p-name" class="w-full p-4 bg-slate-100 border-none rounded-2xl text-[16px] font-bold outline-none mb-3 focus:ring-2 focus:ring-blue-300 transition-all text-slate-800 placeholder:text-slate-500" placeholder="이름 및 특징 (예: 프로 출장러 김철수)">
+              <textarea id="manual-p-desc" class="w-full p-4 bg-slate-100 border-none rounded-2xl text-[16px] h-28 outline-none resize-none mb-3 focus:ring-2 focus:ring-blue-300 transition-all text-slate-800 placeholder:text-slate-500 font-bold" placeholder="상세 설명과 니즈를 입력하세요"></textarea>
+              <button onclick="Actions.addManualPersona()" class="w-full h-12 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-[16px] btn-active add-btn">목록에 추가</button>
             </div>
           </div>
           
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto z-[60]">
-            <button onclick="setState({step: 3})" class="w-full h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-[17px] shadow-md shadow-indigo-600/30 btn-active">인터뷰 대상 선택하기</button>
+          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto z-[60] next-btn-area">
+            <button onclick="setState({step: 3})" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-md btn-active select-btn">인터뷰 대상 선택하기</button>
           </div>
         </div>`;
       break;
@@ -575,37 +571,37 @@ function render() {
     case 3: // Select Persona
       const allSelectable = getAllPersonas();
       content += `
-        <div class="pt-24 px-6 pb-40 animate-fade-in bg-slate-50 min-h-screen">
+        <div class="pt-24 px-2 pb-40 animate-fade-in bg-slate-50 min-h-screen select-persona-page">
           ${renderHeader("대상 선택", 2)}
           <div class="mb-8">
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900 leading-snug">누구와 먼저<br/>대화를 나눌까요?</h2>
           </div>
           
-          <div class="grid gap-4">
+          <div class="grid gap-4 selectable-persona-list">
             ${allSelectable.map((p, i) => {
               const isDone = state.history.some(h => h.personaId === p.id);
               const isSel = state.selectedPersonaId === p.id;
               
               return `
               <div onclick="${isDone ? '' : `setState({selectedPersonaId: '${p.id}', aiSurveys: [], manualSurveys: [], selectedQuestionIds: []})`}" 
-                   class="p-6 rounded-[2rem] border-2 transition-all cursor-pointer ${isDone ? 'opacity-60 bg-slate-100 border-slate-300' : (isSel ? 'border-indigo-600 bg-white shadow-lg scale-[1.02]' : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md')}">
+                   class="p-4 rounded-[2rem] border-2 transition-all cursor-pointer persona-item ${isDone ? 'opacity-60 bg-slate-100 border-slate-300' : (isSel ? 'border-blue-600 bg-white shadow-lg scale-[1.02]' : 'border-slate-200 bg-white hover:border-blue-300 hover:shadow-md')}">
                 <div class="flex items-center justify-between mb-2">
                   <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isSel ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'} font-black text-sm">
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isSel ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'} font-black text-sm persona-index">
                       ${isSel ? '<i data-lucide="check" class="w-4 h-4"></i>' : (i + 1)}
                     </div>
-                    <h3 class="font-extrabold text-[18px] text-slate-900 line-clamp-1">${p.name}</h3>
+                    <h3 class="font-extrabold text-[18px] text-slate-900 line-clamp-1 persona-name">${p.name}</h3>
                   </div>
-                  ${isDone ? '<span class="text-[11px] font-extrabold px-2 py-1 bg-slate-300 text-slate-700 rounded-md">인터뷰 완료</span>' : ''}
+                  ${isDone ? '<span class="text-[11px] font-extrabold px-2 py-1 bg-slate-300 text-slate-700 rounded-md done-badge">인터뷰 완료</span>' : ''}
                 </div>
-                <p class="text-[14px] text-slate-600 font-bold line-clamp-2 mt-2">${p.description}</p>
+                <p class="text-[16px] text-slate-600 font-bold line-clamp-2 mt-2 persona-desc">${p.description}</p>
               </div>`;
             }).join('')}
           </div>
           
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto z-[60]">
+          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto z-[60] next-btn-area">
             <button onclick="Actions.generateSurveys()" ${!state.selectedPersonaId ? 'disabled' : ''} 
-              class="w-full h-14 bg-slate-900 text-white rounded-2xl font-bold text-[17px] btn-active shadow-lg disabled:opacity-50 disabled:scale-100 transition-all">
+              class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] btn-active shadow-lg disabled:opacity-50 disabled:scale-100 transition-all generate-btn">
               질문 리스트 생성
             </button>
           </div>
@@ -615,44 +611,44 @@ function render() {
     case 4: // Select Questions
       const combinedSurveys = [...state.aiSurveys, ...state.manualSurveys];
       content += `
-        <div class="pt-24 px-6 pb-64 animate-fade-in bg-slate-50 min-h-screen">
+        <div class="pt-24 px-2 pb-64 animate-fade-in bg-slate-50 min-h-screen survey-page">
           ${renderHeader("질문 설계", 3)}
           <div class="mb-8">
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">핵심 질문을<br/>골라주세요</h2>
-            <p class="text-indigo-700 text-[15px] font-extrabold">인터뷰의 뼈대가 될 질문들을 선택합니다.</p>
+            <p class="text-blue-700 text-[16px] font-extrabold">인터뷰의 뼈대가 될 질문들을 선택합니다.</p>
           </div>
           
-          <div class="space-y-10 mb-10">
+          <div class="space-y-10 mb-10 survey-list">
             ${combinedSurveys.map(s => `
-              <div class="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
-                <h3 class="font-extrabold text-[18px] text-slate-900 mb-5 flex items-center gap-2">
-                  <div class="w-1.5 h-5 bg-indigo-600 rounded-full"></div> ${s.title}
+              <div class="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm survey-card">
+                <h3 class="font-extrabold text-[18px] text-slate-900 mb-5 flex items-center gap-2 survey-title">
+                  <div class="w-1.5 h-5 bg-blue-600 rounded-full"></div> ${s.title}
                 </h3>
-                <div class="space-y-3">
+                <div class="space-y-3 question-list">
                   ${s.questions.map((q, idx) => {
                     const qId = `${s.id}-${idx}`; 
                     const isSel = state.selectedQuestionIds.includes(qId);
                     return `
-                      <div onclick="toggleQuestion('${qId}')" class="p-4 rounded-2xl border-2 transition-all cursor-pointer flex gap-4 items-start ${isSel ? 'border-indigo-600 bg-indigo-50 shadow-sm' : 'border-slate-100 bg-slate-50 hover:bg-slate-100'}">
-                        <div class="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${isSel ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300 bg-white'} text-white">
+                      <div onclick="toggleQuestion('${qId}')" class="p-4 rounded-2xl border-2 transition-all cursor-pointer flex gap-4 items-start question-item ${isSel ? 'border-blue-600 bg-blue-50 shadow-sm' : 'border-slate-100 bg-slate-50 hover:bg-slate-100'}">
+                        <div class="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${isSel ? 'border-blue-600 bg-blue-600' : 'border-slate-300 bg-white'} text-white check-icon">
                           ${isSel ? `<i data-lucide="check" class="w-3.5 h-3.5"></i>` : ""}
                         </div>
-                        <p class="text-[15px] ${isSel ? 'text-indigo-900 font-extrabold' : 'text-slate-700 font-bold'} flex-1 leading-snug">${q}</p>
+                        <p class="text-[16px] ${isSel ? 'text-blue-900 font-extrabold' : 'text-slate-700 font-bold'} flex-1 leading-snug question-text">${q}</p>
                       </div>`;
                   }).join('')}
                 </div>
               </div>`).join('')}
           </div>
           
-          <div class="bg-slate-200/60 p-6 rounded-[2rem] border border-slate-300 space-y-4 mb-10">
-            <h4 class="text-[13px] font-extrabold text-slate-600 uppercase tracking-wider flex items-center gap-2"><i data-lucide="plus-circle" class="w-4 h-4"></i> 직접 질문 추가</h4>
-            <textarea id="manual-q-input" class="w-full p-4 bg-white border-none rounded-2xl text-[15px] h-28 outline-none focus:ring-2 focus:ring-indigo-300 transition-all placeholder:text-slate-500 font-bold resize-none text-slate-900" placeholder="엔터키로 구분하여 질문을 입력하세요"></textarea>
-            <button onclick="Actions.addManualQuestions()" class="w-full h-12 bg-slate-800 text-white rounded-xl font-bold text-[15px] btn-active">추가하기</button>
+          <div class="bg-slate-200/60 p-6 rounded-[2rem] border border-slate-300 space-y-4 mb-10 manual-question-form">
+            <h4 class="text-[16px] font-extrabold text-slate-600 uppercase tracking-wider flex items-center gap-2 manual-title">직접 질문 추가</h4>
+            <textarea id="manual-q-input" class="w-full p-4 bg-white border-none rounded-2xl text-[16px] h-28 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none text-slate-900 manual-textarea" placeholder="엔터키로 구분하여 질문을 입력하세요"></textarea>
+            <button onclick="Actions.addManualQuestions()" class="w-full h-12 bg-slate-800 text-white rounded-xl font-bold text-[16px] btn-active add-btn">추가하기</button>
           </div>
           
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto z-[60]">
+          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto z-[60] next-btn-area">
             <button onclick="if(state.selectedQuestionIds.length > 0) setState({step: 5})" ${state.selectedQuestionIds.length === 0 ? 'disabled' : ''} 
-              class="w-full h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-[17px] shadow-md shadow-indigo-600/30 disabled:opacity-50 btn-active transition-all">
+              class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-md disabled:opacity-50 btn-active transition-all confirm-btn">
               질문 확정 (${state.selectedQuestionIds.length}개)
             </button>
           </div>
@@ -665,183 +661,86 @@ function render() {
       const selectedP = getAllPersonas().find(p => p.id === state.selectedPersonaId);
       
       content += `
-        <div class="pt-24 px-6 pb-44 animate-fade-in bg-slate-50 min-h-screen">
+        <div class="pt-24 px-2 pb-44 animate-fade-in bg-slate-50 min-h-screen confirm-page">
           ${renderHeader("인터뷰 시작", 4)}
-          <div class="mb-10 text-center mt-4">
-            <div class="w-20 h-20 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center mx-auto mb-5 shadow-sm border border-indigo-200">
-              <i data-lucide="mic" class="w-10 h-10"></i>
+          <div class="mb-10 text-center mt-4 confirm-header">
+            <div class="w-20 h-20 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center mx-auto mb-5 shadow-sm border border-blue-200 spinner-area">
             </div>
             <h2 class="text-2xl font-black tracking-tight text-slate-900 mb-2">인터뷰 준비 완료</h2>
-            <p class="text-slate-600 font-bold">아래 대상과 가상 인터뷰를 진행합니다.</p>
+            <p class="text-slate-600 font-bold text-[16px]">아래 대상과 가상 인터뷰를 진행합니다.</p>
           </div>
           
-          <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-md mb-8">
-            <div class="mb-6 border-b border-slate-200 pb-5 text-center">
-              <h3 class="font-extrabold text-[22px] text-indigo-900">${selectedP?.name}</h3>
+          <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-md mb-8 persona-card">
+            <div class="mb-6 border-b border-slate-200 pb-5 text-center persona-header">
+              <h3 class="font-extrabold text-[22px] text-blue-900">${selectedP?.name}</h3>
             </div>
-            <div class="space-y-4 max-h-72 overflow-y-auto pr-2 no-scrollbar font-bold">
+            <div class="space-y-4 max-h-72 overflow-y-auto pr-2 no-scrollbar font-bold question-list">
               ${finalQList.map((q, i) => `
-                <div class="flex gap-3 text-[15px] bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <span class="font-black text-indigo-600 shrink-0 select-none">Q${i+1}.</span> 
+                <div class="flex gap-3 text-[15px] bg-slate-50 p-4 rounded-2xl border border-slate-100 question-item">
+                  <span class="font-black text-blue-600 shrink-0 select-none">Q${i+1}.</span> 
                   <p class="text-slate-800">${q}</p>
                 </div>
               `).join('')}
             </div>
           </div>
           
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto z-[60]">
-            <button onclick="Actions.performInterview()" class="w-full h-16 bg-slate-900 text-white rounded-2xl font-black text-[18px] btn-active shadow-xl flex justify-center items-center gap-2">
-              <i data-lucide="play-circle" class="w-6 h-6"></i> 대화 시작하기
+          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto z-[60] next-btn-area">
+            <button onclick="Actions.performInterview()" class="w-full h-16 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-black text-[18px] btn-active shadow-xl flex justify-center items-center gap-2 start-btn">
+              대화 시작하기
             </button>
           </div>
         </div>`;
       break;
 
-    case 6: // Interview Result (Selection added)
+    case 6: // Report
       const curH = state.history[state.history.length-1];
       const curPersona = getAllPersonas().find(p => p.id === curH.personaId);
-      
       content += `
-        <div class="pt-24 px-6 pb-[300px] animate-fade-in bg-slate-50 min-h-screen">
+        <div class="pt-24 px-2 pb-64 animate-fade-in bg-slate-50 min-h-screen report-page">
           ${renderHeader("인터뷰 결과", 3)}
           
-          <div class="mb-8">
-            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">중요한 인사이트를<br/>선택해 주세요</h2>
-            <p class="text-indigo-700 text-[15px] font-bold">선택된 대화와 아래 작성 내용을 바탕으로 컨셉이 도출됩니다.</p>
-          </div>
-
-          <div class="mb-8 p-8 bg-gradient-to-br from-slate-900 to-indigo-950 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
-            <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500/30 blur-2xl rounded-full"></div>
-            <div class="inline-block px-3 py-1 bg-white/20 rounded-full text-[11px] font-extrabold tracking-widest uppercase mb-4 border border-white/20">Summary</div>
-            <h2 class="text-[24px] font-black mb-5 leading-tight text-white">${curPersona.name}</h2>
-            <p class="text-indigo-50 text-[15px] leading-relaxed whitespace-pre-line font-bold">${curH.result.summary}</p>
-          </div>
-
-          <div class="bg-indigo-600 p-6 rounded-[2rem] mb-10 shadow-md shadow-indigo-600/30 text-white">
-            <h3 class="font-black text-[15px] uppercase tracking-wider mb-5 flex items-center gap-2"><i data-lucide="zap" class="w-5 h-5 text-yellow-300"></i> AI Key Insights</h3>
-            <div class="text-indigo-50 font-bold text-[15px] leading-relaxed whitespace-pre-line">${curH.result.keyInsights}</div>
+          <div class="mb-8 p-8 bg-gradient-to-br from-blue-900 to-sky-950 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden report-summary gradient-blue">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/30 blur-2xl rounded-full"></div>
+            <div class="inline-block px-3 py-1 bg-white/20 rounded-full text-[11px] font-extrabold tracking-widest uppercase mb-4 border border-white/20 text-blue-100 summary-badge">Summary</div>
+            <h2 class="text-[26px] font-black mb-5 leading-tight text-white persona-name">${curPersona.name}</h2>
+            <p class="text-blue-50 text-[16px] leading-relaxed whitespace-pre-line font-bold summary-text opacity-90">${curH.result.summary}</p>
           </div>
           
-          <div class="space-y-6 mb-12">
-            <h3 class="font-black text-[18px] text-slate-900 px-2">대화 내용 (Q&A)</h3>
-            ${curH.result.qaPairs.map((qa, i) => {
-              const isSel = state.selectedQaIndices.includes(i);
-              return `
-              <div onclick="Actions.toggleQaSelection(${i})" class="p-6 rounded-[2rem] border-2 transition-all cursor-pointer bg-white relative ${isSel ? 'border-indigo-600 shadow-md' : 'border-slate-200 shadow-sm'}">
-                <div class="absolute top-6 right-6 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSel ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white text-transparent'}">
-                  <i data-lucide="check" class="w-3.5 h-3.5"></i>
+          <div class="space-y-6 mb-12 question-list">
+            ${curH.result.qaPairs.map((qa, i) => `
+              <div class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm animate-fade-in question-item">
+                <div class="flex gap-3 mb-4 qa-header">
+                  <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 font-bold flex items-center justify-center shrink-0 text-sm qa-index">Q${i+1}</div>
+                  <div class="text-slate-800 font-bold text-[16px] leading-snug pt-1 qa-text">${qa.q}</div>
                 </div>
-                <div class="flex gap-3 mb-4 pr-8">
-                  <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold flex items-center justify-center shrink-0 text-sm">Q${i+1}</div>
-                  <div class="text-slate-900 font-extrabold text-[16px] leading-snug pt-1">${qa.q}</div>
-                </div>
-                <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 text-slate-700 font-bold text-[15px] leading-relaxed">
+                <div class="bg-blue-50/50 p-5 rounded-2xl border border-blue-50 text-slate-700 font-medium text-[16px] leading-relaxed answer-text">
                   ${qa.a}
                 </div>
-              </div>`
-            }).join('')}
+              </div>`).join('')}
+          </div>
+
+          <div class="bg-blue-600 p-6 rounded-[2rem] mb-12 shadow-md shadow-blue-600/20 text-white insights-area">
+            <h3 class="font-black text-[16px] uppercase tracking-wider mb-5 flex items-center gap-2 insights-title"> Key Insights</h3>
+            <div class="text-blue-50 font-medium text-[16px] leading-relaxed whitespace-pre-line insights-text">${curH.result.keyInsights}</div>
           </div>
           
-          <!-- 질문 추가 입력 (기존 Follow up) -->
-          <div class="p-6 bg-white border border-slate-200 rounded-3xl mb-12 shadow-sm">
-            <h4 class="text-[13px] font-extrabold text-slate-600 uppercase tracking-wider flex items-center gap-2 mb-4">
-              <i data-lucide="message-square-plus" class="w-4 h-4"></i> 추가 질문하기
+          <div class="p-6 bg-white border border-slate-200 rounded-3xl mb-8 shadow-sm followup-area">
+            <h4 class="text-[16px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2 mb-4 followup-title">
+               추가 질문하기
             </h4>
-            <div class="flex gap-2">
-              <input type="text" id="followup-input" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[15px] outline-none focus:ring-2 focus:ring-indigo-300 font-bold placeholder:text-slate-500 text-slate-900" placeholder="더 궁금한 점을 물어보세요">
-              <button onclick="Actions.askFollowUp()" class="shrink-0 w-14 h-14 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl shadow-md flex items-center justify-center btn-active transition-colors">
-                <i data-lucide="send" class="w-5 h-5"></i>
+            <div class="flex gap-2 followup-form">
+              <input type="text" id="followup-input" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[16px] outline-none focus:ring-2 focus:ring-blue-200 font-bold placeholder:text-slate-400 text-slate-900 wakeup-input" placeholder="더 궁금한 점을 물어보세요">
+              <button onclick="Actions.askFollowUp()" class="shrink-0 w-14 h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl shadow-md flex items-center justify-center btn-active transition-colors ask-btn">
               </button>
             </div>
           </div>
           
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-            <h4 class="text-[14px] font-extrabold text-slate-800 mb-3 flex items-center gap-2">
-              <i data-lucide="lightbulb" class="w-4 h-4 text-amber-500"></i> 직접 발견한 인사이트 (선택)
-            </h4>
-            <textarea id="user-insight-input" onchange="Actions.updateUserInsight(this.value)" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[14px] h-20 outline-none focus:ring-2 focus:ring-indigo-300 transition-all placeholder:text-slate-500 font-bold resize-none mb-4 text-slate-900" placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${state.userInsight}</textarea>
-            
-            <button onclick="Actions.generateConcepts()" class="w-full h-14 bg-indigo-600 text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
-              디자인 컨셉 도출하기
+          <div class="fixed bottom-0 left-0 right-0 p-5 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto space-y-3 z-[60] next-btn-area">
+            <button onclick="setState({step: 3})" class="w-full h-14 bg-white border border-slate-200 text-slate-700 rounded-2xl font-bold text-[16px] flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors btn-active shadow-sm other-persona-btn">
+              다른 타겟 인터뷰하기
             </button>
-          </div>
-        </div>`;
-      break;
-
-    case 7: // Design Concepts
-      const perspectives = ["종합적 관점", "독창성 관점", "기술적 관점", "비즈니스 관점"];
-      content += `
-        <div class="pt-24 px-6 pb-64 animate-fade-in bg-slate-50 min-h-screen">
-          ${renderHeader("컨셉 도출", 6)}
-          
-          <div class="mb-8">
-            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">핵심 인사이트 기반<br/>디자인 컨셉</h2>
-            <p class="text-indigo-700 text-[15px] font-bold">마음에 드는 컨셉 하나를 선택해 시나리오를 확인하세요.</p>
-          </div>
-
-          <!-- 도출된 컨셉 리스트 -->
-          <div class="space-y-4 mb-10">
-            ${state.currentConcepts.map((c, i) => {
-              const isSel = state.selectedConceptId === c.id;
-              return `
-              <div onclick="setState({selectedConceptId: '${c.id}'})" class="p-6 rounded-[2rem] border-2 transition-all cursor-pointer bg-white relative ${isSel ? 'border-indigo-600 shadow-md ring-2 ring-indigo-600/20' : 'border-slate-200 shadow-sm'}">
-                <div class="absolute top-6 right-6 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSel ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white text-transparent'}">
-                  <i data-lucide="check" class="w-3.5 h-3.5"></i>
-                </div>
-                <div class="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 rounded-md text-[11px] font-extrabold tracking-widest uppercase mb-3 border border-indigo-100">Concept ${i+1}</div>
-                <h3 class="font-extrabold text-[18px] text-slate-900 mb-3 pr-8 leading-snug">${c.title}</h3>
-                <p class="text-slate-700 font-bold text-[14px] leading-relaxed">${c.description}</p>
-              </div>`
-            }).join('')}
-          </div>
-
-          <!-- 타겟 변경 버튼 -->
-          <div class="mb-10">
-            <button onclick="setState({step: 3})" class="w-full h-14 bg-white border-2 border-slate-200 text-slate-700 rounded-2xl font-bold text-[16px] flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors btn-active shadow-sm">
-              <i data-lucide="users" class="w-5 h-5"></i> 다른 타겟 인터뷰하기
-            </button>
-          </div>
-
-          <!-- 하단 고정 영역 (관점 변경 탭 + 진행 버튼) -->
-          <div class="fixed bottom-0 left-0 right-0 p-5 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-            <div class="grid grid-cols-2 gap-2 mb-4">
-              ${perspectives.map(p => {
-                const isActive = state.currentPerspective === p;
-                return `
-                <button onclick="Actions.generateConcepts('${p}')" class="py-2.5 rounded-xl font-bold text-[13px] border transition-all ${isActive ? 'bg-slate-800 text-white border-slate-800' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}">
-                  ${p}
-                </button>`
-              }).join('')}
-            </div>
-            <button onclick="Actions.generateScenario()" ${!state.selectedConceptId ? 'disabled' : ''} class="w-full h-14 bg-indigo-600 text-white rounded-2xl font-bold text-[17px] shadow-lg disabled:opacity-50 btn-active">
-              컨셉 시나리오 보기
-            </button>
-          </div>
-        </div>`;
-      break;
-
-    case 8: // Concept Scenario
-      content += `
-        <div class="pt-24 px-6 pb-40 animate-fade-in bg-slate-50 min-h-screen">
-          ${renderHeader("컨셉 시나리오", 7)}
-          
-          <div class="mb-8">
-            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900 leading-snug">사용자 경험<br/>시나리오</h2>
-            <p class="text-indigo-700 text-[15px] font-bold">선택하신 컨셉이 적용된 미래의 모습을 확인하세요.</p>
-          </div>
-
-          <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-md mb-8">
-            <div class="text-slate-900 font-bold text-[16px] leading-loose whitespace-pre-line">
-              ${state.currentScenario}
-            </div>
-          </div>
-
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto space-y-3 z-[60]">
-            <button onclick="copyReportToClipboard()" class="w-full h-14 bg-slate-900 text-white rounded-2xl font-bold text-[16px] shadow-lg btn-active flex items-center justify-center gap-2">
-              <i data-lucide="copy" class="w-5 h-5"></i> 전체 리포트 복사하기
-            </button>
-            <button onclick="setState({step: 0})" class="w-full h-14 bg-white border border-slate-200 text-slate-700 rounded-2xl font-bold text-[16px] flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors btn-active shadow-sm">
-              처음으로 돌아가기
+            <button onclick="copyReportToClipboard()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[16px] shadow-lg btn-active copy-btn">
+              리포트 복사하기
             </button>
           </div>
         </div>`;
