@@ -4,7 +4,8 @@
 // 모델명 고정 (절대 변경 금지)
 const MODEL_NAME = "gemini-flash-latest"; 
 const SESSION_KEY_API = "research_lab_api_key_v31";
-const LOCAL_STORAGE_KEY = "research_lab_saved_state_v31";
+const PROJECTS_STORAGE_KEY = "research_lab_projects_v31"; // 다중 프로젝트 저장을 위한 키 변경
+let currentProjectId = null; // 현재 진행 중인 프로젝트 ID
 
 // --- PROMPT TEMPLATES ---
 const PROMPTS = {
@@ -140,19 +141,11 @@ function getAllPersonas() {
 }
 
 // --- STATE MANAGEMENT ---
-function saveStateToLocal(currentState) {
-  if (currentState.step > 0) {
-    const { apiKey, isAnalyzing, errorMsg, ...dataToSave } = currentState;
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
-  }
-}
-
 function setState(newState) {
   const prevStep = state.step;
   if (newState.step !== undefined) state.maxStepReached = Math.max(state.maxStepReached, newState.step);
   state = { ...state, ...newState }; 
   window.state = state;
-  saveStateToLocal(state);
   render(); 
   if (newState.step !== undefined && newState.step !== prevStep) window.scrollTo({top: 0, behavior: 'smooth'});
 }
@@ -228,18 +221,19 @@ const Actions = {
   },
 
   loadFromLocal() {
-    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (saved) {
-      try {
-        const data = JSON.parse(saved);
-        const currentApiKey = state.apiKey;
-        setState({ ...data, apiKey: currentApiKey, isAnalyzing: false });
-        showToast("성공적으로 불러왔습니다.");
-        return true;
-      } catch (e) { console.error(e); }
+    let projects = {};
+    try {
+      projects = JSON.parse(localStorage.getItem(PROJECTS_STORAGE_KEY)) || {};
+    } catch(e) {}
+    
+    const keys = Object.keys(projects).sort((a,b) => projects[b].updatedAt - projects[a].updatedAt);
+    if (keys.length === 0) {
+      showToast("저장된 프로젝트가 없습니다.");
+      return false;
     }
-    showToast("저장된 프로젝트가 없습니다.");
-    return false;
+    
+    showProjectSelectionModal(projects, keys);
+    return true;
   },
 
   startNewProject() {
@@ -250,6 +244,7 @@ const Actions = {
       history: [], isAnalyzing: false, errorMsg: null,
       selectedQaIndices: [], userInsight: "", currentInferences: [], selectedInferenceId: null, currentConcepts: [], currentPerspective: "종합적 관점", selectedConceptId: null, currentScenario: ""
     };
+    currentProjectId = null; // 프로젝트 ID 초기화 (자동 저장 시 새 파일 생성 위함)
     setState({ ...initialState, apiKey: currentApiKey });
   },
 
@@ -331,7 +326,6 @@ const Actions = {
 
   updateUserInsight(text) {
     state.userInsight = text; 
-    saveStateToLocal(state);
   },
 
   async generateInferences() {
@@ -423,6 +417,55 @@ const Actions = {
   }
 };
 window.Actions = Actions;
+
+// --- PROJECT MODAL & LOAD LOGIC ---
+window.loadProject = (id) => {
+  let projects = {};
+  try {
+    projects = JSON.parse(localStorage.getItem(PROJECTS_STORAGE_KEY)) || {};
+  } catch(e) {}
+  
+  if(projects[id]) {
+     const currentApiKey = state.apiKey;
+     currentProjectId = id;
+     setState({ ...projects[id].data, apiKey: currentApiKey, isAnalyzing: false });
+     document.getElementById('project-modal')?.remove();
+     showToast("프로젝트를 불러왔습니다.");
+  }
+};
+
+function showProjectSelectionModal(projects, keys) {
+  const modal = document.createElement("div");
+  modal.id = "project-modal";
+  modal.className = "fixed inset-0 z-[10000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in";
+  
+  let listHtml = keys.map(k => {
+    const p = projects[k];
+    const date = new Date(p.updatedAt).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return `
+      <div onclick="window.loadProject('${k}')" class="p-5 bg-slate-50 rounded-2xl mb-3 cursor-pointer hover:bg-blue-50 border border-slate-200 transition-colors flex flex-col gap-1">
+        <h4 class="font-extrabold text-[16px] text-slate-800 line-clamp-1">${p.title}</h4>
+        <p class="text-[13px] text-slate-500 font-bold">${date}</p>
+      </div>
+    `;
+  }).join('');
+
+  modal.innerHTML = `
+    <div class="bg-white rounded-[2rem] w-full max-w-[400px] max-h-[80vh] flex flex-col shadow-2xl overflow-hidden relative">
+      <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+        <h3 class="font-black text-[18px] text-slate-900 pl-2">프로젝트 불러오기</h3>
+        <button onclick="document.getElementById('project-modal').remove()" class="p-2 -mr-2 text-slate-400 hover:text-slate-700 transition-colors rounded-full hover:bg-slate-100">
+          <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+      </div>
+      <div class="p-6 overflow-y-auto flex-1 bg-white">
+        ${listHtml}
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  lucide.createIcons();
+}
 
 // --- CLIPBOARD UTILITIES ---
 function copyReportToClipboard() {
@@ -530,6 +573,7 @@ function renderHeader(title, prevStep) {
       </div>
       <div class="flex items-center gap-1">
         ${canGoNext ? `<button onclick="setState({step: ${state.step + 1}})" class="p-2 rounded-full hover:bg-slate-100/80 text-slate-800 transition-all"><i data-lucide="chevron-right" class="w-6 h-6"></i></button>` : ""}
+        <button onclick="copyReportToClipboard()" class="p-2 rounded-full hover:bg-slate-100/80 text-slate-800 transition-all"><i data-lucide="copy" class="w-5 h-5"></i></button>
         <button onclick="setState({step: 0})" class="p-2 rounded-full hover:bg-slate-100/80 text-slate-800 transition-all"><i data-lucide="home" class="w-5 h-5"></i></button>
       </div>
     </header>`;
@@ -604,7 +648,7 @@ function render() {
             <p class="text-slate-600 font-bold text-[15px]">해결하고자 하는 문제나 타겟 시장을 구체적으로 적어주시면 더 정확한 결과를 얻을 수 있습니다.</p>
           </div>
           <div class="relative bg-white rounded-3xl shadow-sm border border-slate-200 p-2 mb-20">
-            <textarea id="topic-input" oninput="state.researchTopic = this.value; saveStateToLocal(state);" class="w-full h-64 p-5 bg-transparent border-none text-[17px] outline-none placeholder:text-slate-400 font-bold leading-relaxed resize-none text-slate-800" placeholder="예: 해외 여행 계획 시 정보의 파편화로 인해 피로도를 느끼는 1인 가구 직장인">${state.researchTopic}</textarea>
+            <textarea id="topic-input" class="w-full h-64 p-5 bg-transparent border-none text-[17px] outline-none placeholder:text-slate-400 font-bold leading-relaxed resize-none text-slate-800" placeholder="예: 해외 여행 계획 시 정보의 파편화로 인해 피로도를 느끼는 1인 가구 직장인">${state.researchTopic}</textarea>
           </div>
           
           <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto z-[60]">
@@ -908,7 +952,7 @@ function render() {
             <h4 class="text-[16px] font-extrabold text-slate-800 mb-3 flex items-center gap-2 mt-4">
               <i data-lucide="lightbulb" class="w-5 h-5 text-amber-500"></i> 직접 발견한 인사이트 (선택)
             </h4>
-            <textarea id="user-insight-input" oninput="Actions.updateUserInsight(this.value)" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[16px] h-32 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none mb-4 text-slate-900" placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${state.userInsight}</textarea>
+            <textarea id="user-insight-input" onchange="Actions.updateUserInsight(this.value)" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[16px] h-32 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none mb-4 text-slate-900" placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${state.userInsight}</textarea>
             
             <button onclick="Actions.generateInferences()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
               핵심 가치 추론하기
@@ -1038,4 +1082,32 @@ function render() {
 // --- BOOTSTRAP ---
 window.onload = () => {
   render();
+  setInterval(() => {
+    // 주기적 프로젝트 자동 저장 로직
+    if (state.step > 0 || (state.step === 1 && state.researchTopic.trim() !== "")) {
+      const { apiKey, isAnalyzing, errorMsg, ...dataToSave } = state;
+      
+      let projects = {};
+      try {
+        projects = JSON.parse(localStorage.getItem(PROJECTS_STORAGE_KEY)) || {};
+      } catch(e) {}
+
+      if (!currentProjectId) {
+        currentProjectId = 'proj_' + Date.now();
+      }
+
+      let title = state.researchTopic.trim();
+      if (!title) title = "새 프로젝트 " + new Date().toLocaleTimeString();
+      else if (title.length > 20) title = title.substring(0, 20) + "...";
+
+      projects[currentProjectId] = {
+        id: currentProjectId,
+        title: title,
+        updatedAt: Date.now(),
+        data: dataToSave
+      };
+
+      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
+    }
+  }, 5000);
 };
