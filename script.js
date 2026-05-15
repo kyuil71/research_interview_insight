@@ -140,11 +140,19 @@ function getAllPersonas() {
 }
 
 // --- STATE MANAGEMENT ---
+function saveStateToLocal(currentState) {
+  if (currentState.step > 0) {
+    const { apiKey, isAnalyzing, errorMsg, ...dataToSave } = currentState;
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
+  }
+}
+
 function setState(newState) {
   const prevStep = state.step;
   if (newState.step !== undefined) state.maxStepReached = Math.max(state.maxStepReached, newState.step);
   state = { ...state, ...newState }; 
   window.state = state;
+  saveStateToLocal(state);
   render(); 
   if (newState.step !== undefined && newState.step !== prevStep) window.scrollTo({top: 0, behavior: 'smooth'});
 }
@@ -323,6 +331,7 @@ const Actions = {
 
   updateUserInsight(text) {
     state.userInsight = text; 
+    saveStateToLocal(state);
   },
 
   async generateInferences() {
@@ -521,7 +530,6 @@ function renderHeader(title, prevStep) {
       </div>
       <div class="flex items-center gap-1">
         ${canGoNext ? `<button onclick="setState({step: ${state.step + 1}})" class="p-2 rounded-full hover:bg-slate-100/80 text-slate-800 transition-all"><i data-lucide="chevron-right" class="w-6 h-6"></i></button>` : ""}
-        <button onclick="copyReportToClipboard()" class="p-2 rounded-full hover:bg-slate-100/80 text-slate-800 transition-all"><i data-lucide="copy" class="w-5 h-5"></i></button>
         <button onclick="setState({step: 0})" class="p-2 rounded-full hover:bg-slate-100/80 text-slate-800 transition-all"><i data-lucide="home" class="w-5 h-5"></i></button>
       </div>
     </header>`;
@@ -596,7 +604,7 @@ function render() {
             <p class="text-slate-600 font-bold text-[15px]">해결하고자 하는 문제나 타겟 시장을 구체적으로 적어주시면 더 정확한 결과를 얻을 수 있습니다.</p>
           </div>
           <div class="relative bg-white rounded-3xl shadow-sm border border-slate-200 p-2 mb-20">
-            <textarea id="topic-input" class="w-full h-64 p-5 bg-transparent border-none text-[17px] outline-none placeholder:text-slate-400 font-bold leading-relaxed resize-none text-slate-800" placeholder="예: 해외 여행 계획 시 정보의 파편화로 인해 피로도를 느끼는 1인 가구 직장인">${state.researchTopic}</textarea>
+            <textarea id="topic-input" oninput="state.researchTopic = this.value; saveStateToLocal(state);" class="w-full h-64 p-5 bg-transparent border-none text-[17px] outline-none placeholder:text-slate-400 font-bold leading-relaxed resize-none text-slate-800" placeholder="예: 해외 여행 계획 시 정보의 파편화로 인해 피로도를 느끼는 1인 가구 직장인">${state.researchTopic}</textarea>
           </div>
           
           <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto z-[60]">
@@ -900,7 +908,7 @@ function render() {
             <h4 class="text-[16px] font-extrabold text-slate-800 mb-3 flex items-center gap-2 mt-4">
               <i data-lucide="lightbulb" class="w-5 h-5 text-amber-500"></i> 직접 발견한 인사이트 (선택)
             </h4>
-            <textarea id="user-insight-input" onchange="Actions.updateUserInsight(this.value)" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[16px] h-32 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none mb-4 text-slate-900" placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${state.userInsight}</textarea>
+            <textarea id="user-insight-input" oninput="Actions.updateUserInsight(this.value)" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[16px] h-32 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none mb-4 text-slate-900" placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${state.userInsight}</textarea>
             
             <button onclick="Actions.generateInferences()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
               핵심 가치 추론하기
@@ -1030,10 +1038,4 @@ function render() {
 // --- BOOTSTRAP ---
 window.onload = () => {
   render();
-  setInterval(() => {
-    if (state.step > 0) {
-      const { apiKey, isAnalyzing, errorMsg, ...dataToSave } = state;
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
-    }
-  }, 5000);
 };
