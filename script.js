@@ -59,6 +59,7 @@ const PROMPTS = {
   [RULE] Easy Korean. No markdown bold (**). 모든 문장은 존댓말을 사용해 주세요.
   Return JSON: { "q": "${question}", "a": "Answer" }.`,
 
+  // 업데이트된 프롬프트: 추론 도출 방식 정밀화
   GENERATE_INFERENCES: (topic, persona, qaText, userInsight) => `You are a Senior UX Strategist. Topic: "${topic}". Persona: "${persona.name}".
   [선택된 주요 대화]
   ${qaText}
@@ -67,11 +68,15 @@ const PROMPTS = {
 
   위 인터뷰 내용과 사용자 인사이트를 종합 분석하여, 사용자에게 가장 중요한 가치를 의미하는 핵심 "추론(Inference)" 3가지를 도출해 주세요.
   [STRICT RULE]
+  - 각 추론의 설명(description)은 제공된 인터뷰 내용을 바탕으로 아래 3가지 서술 방식 중 가장 적합한 것을 선택하여 적용해 주세요:
+    1. "인터뷰를 통해 알게 된 [구체적 내용] 내용들로 인해, [어떤 가치]가 중요한 가치라고 유추합니다."
+    2. "인터뷰를 통해 알게 된 [구체적 내용] 내용들로 인해, [어떤 가치]가 중요한 가치가 될 것이라고 유추합니다."
+    3. "인터뷰를 통해 알게 된 [구체적 내용] 내용들로 인해, [어떤 요소들]의 조합이 중요한 가치가 될 것이라고 유추합니다."
   - 각 추론의 설명(description)은 반드시 3줄 이상의 분량으로 상세하게 작성해 주세요.
   - 전문적이고 명확한 한국어 존댓말을 사용해 주세요.
   Return JSON: { "inferences": [{ "id": "uuid", "title": "추론 제목", "description": "3줄 이상의 상세한 설명..." }] }`,
 
-  // 핵심 가치 2줄 이상, 컨셉 내용 4줄 이상으로 규칙 강화
+  // 업데이트된 프롬프트: 중요한 가치를 중심으로 새로운 창의적 컨셉 가설 제안
   GENERATE_CONCEPTS: (topic, persona, qaText, userInsight, inference, perspective) => `You are a Senior UX Strategist. Topic: "${topic}". Persona: "${persona.name}".
   [선택된 주요 대화]
   ${qaText}
@@ -82,6 +87,7 @@ const PROMPTS = {
 
   위 내용과 선택된 추론을 바탕으로 "${perspective}" 관점에서 디자인 컨셉 인사이트를 정확히 3개 도출해 주세요.
   [STRICT RULE]
+  - 제안하는 컨셉들은 앞 단계에서 추론한 '중요한 가치'들을 중심으로, 이전에 없던 창의적인 컨셉이 될 수 있는 '가설'의 형태로 제안되어야 합니다.
   - 각 컨셉에는 반드시 도출된 "핵심 가치(coreValue)" 항목이 포함되어야 하며, 2줄 이상의 상세한 문장으로 설명해 주세요.
   - 각 컨셉의 설명(description)은 반드시 4줄 이상의 분량으로 매우 상세하고 풍부하게 작성해 주세요.
   - 전문적이고 명확한 한국어 존댓말을 사용해 주세요.
@@ -412,7 +418,6 @@ const Actions = {
 window.Actions = Actions;
 
 // --- CLIPBOARD UTILITIES ---
-// 누적된 모든 타겟의 정보를 하나의 리포트로 출력하도록 수정
 function copyReportToClipboard() {
   let txt = "==================================================\n   RESEARCH LAB. 분석 종합 리포트\n==================================================\n\n";
   txt += `[리서치 주제]\n- ${state.researchTopic || "설정된 주제 없음"}\n\n`;
@@ -906,7 +911,7 @@ function render() {
         </div>`;
       break;
 
-    case 7: // 새 단계: Inferences 도출
+    case 7: // Inferences
       content += `
         <div class="pt-24 px-4 pb-[200px] animate-fade-in bg-slate-50 min-h-screen">
           ${renderHeader("핵심 가치 추론", 6)}
@@ -946,7 +951,7 @@ function render() {
           ${renderHeader("컨셉 도출", 7)}
           
           <div class="mb-8 px-2">
-            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">핵심 인사이트 기반<br/>디자인 컨셉</h2>
+            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">핵심 추론 기반<br/>디자인 컨셉</h2>
             <p class="text-blue-700 text-[16px] font-bold">마음에 드는 컨셉 하나를 선택해 시나리오를 확인하세요.</p>
           </div>
 
