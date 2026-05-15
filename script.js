@@ -244,7 +244,7 @@ const Actions = {
       history: [], isAnalyzing: false, errorMsg: null,
       selectedQaIndices: [], userInsight: "", currentInferences: [], selectedInferenceId: null, currentConcepts: [], currentPerspective: "종합적 관점", selectedConceptId: null, currentScenario: ""
     };
-    currentProjectId = null; // 프로젝트 ID 초기화 (자동 저장 시 새 파일 생성 위함)
+    currentProjectId = null; 
     setState({ ...initialState, apiKey: currentApiKey });
   },
 
@@ -434,6 +434,45 @@ window.loadProject = (id) => {
   }
 };
 
+window.deleteProject = (id) => {
+  if(!confirm("이 프로젝트를 삭제하시겠습니까?")) return;
+  let projects = {};
+  try {
+    projects = JSON.parse(localStorage.getItem(PROJECTS_STORAGE_KEY)) || {};
+  } catch(e) {}
+  
+  if(projects[id]) {
+    delete projects[id];
+    localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
+    
+    const keys = Object.keys(projects).sort((a,b) => projects[b].updatedAt - projects[a].updatedAt);
+    if(keys.length === 0) {
+      document.getElementById('project-modal')?.remove();
+      showToast("모든 프로젝트가 삭제되었습니다.");
+    } else {
+      const modalBody = document.querySelector('#project-modal .overflow-y-auto');
+      if(modalBody) {
+        modalBody.innerHTML = keys.map(k => {
+          const p = projects[k];
+          const date = new Date(p.updatedAt).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+          return `
+            <div class="p-5 bg-slate-50 rounded-2xl mb-3 border border-slate-200 transition-colors flex items-center justify-between gap-3 hover:bg-blue-50">
+              <div onclick="window.loadProject('${k}')" class="flex flex-col gap-1 flex-1 cursor-pointer overflow-hidden">
+                <h4 class="font-extrabold text-[16px] text-slate-800 line-clamp-1">${p.title}</h4>
+                <p class="text-[13px] text-slate-500 font-bold">${date}</p>
+              </div>
+              <button onclick="window.deleteProject('${k}')" class="p-2 text-slate-400 hover:text-red-500 transition-colors rounded-full hover:bg-slate-200 shrink-0" title="삭제">
+                <i data-lucide="trash-2" class="w-5 h-5"></i>
+              </button>
+            </div>
+          `;
+        }).join('');
+        lucide.createIcons();
+      }
+    }
+  }
+};
+
 function showProjectSelectionModal(projects, keys) {
   const modal = document.createElement("div");
   modal.id = "project-modal";
@@ -443,9 +482,14 @@ function showProjectSelectionModal(projects, keys) {
     const p = projects[k];
     const date = new Date(p.updatedAt).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
     return `
-      <div onclick="window.loadProject('${k}')" class="p-5 bg-slate-50 rounded-2xl mb-3 cursor-pointer hover:bg-blue-50 border border-slate-200 transition-colors flex flex-col gap-1">
-        <h4 class="font-extrabold text-[16px] text-slate-800 line-clamp-1">${p.title}</h4>
-        <p class="text-[13px] text-slate-500 font-bold">${date}</p>
+      <div class="p-5 bg-slate-50 rounded-2xl mb-3 border border-slate-200 transition-colors flex items-center justify-between gap-3 hover:bg-blue-50">
+        <div onclick="window.loadProject('${k}')" class="flex flex-col gap-1 flex-1 cursor-pointer overflow-hidden">
+          <h4 class="font-extrabold text-[16px] text-slate-800 line-clamp-1">${p.title}</h4>
+          <p class="text-[13px] text-slate-500 font-bold">${date}</p>
+        </div>
+        <button onclick="window.deleteProject('${k}')" class="p-2 text-slate-400 hover:text-red-500 transition-colors rounded-full hover:bg-slate-200 shrink-0" title="삭제">
+          <i data-lucide="trash-2" class="w-5 h-5"></i>
+        </button>
       </div>
     `;
   }).join('');
