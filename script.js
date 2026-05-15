@@ -59,39 +59,40 @@ const PROMPTS = {
   [RULE] Easy Korean. No markdown bold (**). 모든 문장은 존댓말을 사용해 주세요.
   Return JSON: { "q": "${question}", "a": "Answer" }.`,
 
-  // 업데이트된 프롬프트: 추론 도출 방식 정밀화
   GENERATE_INFERENCES: (topic, persona, qaText, userInsight) => `You are a Senior UX Strategist. Topic: "${topic}". Persona: "${persona.name}".
-  [선택된 주요 대화]
+  [선택된 주요 대화 종합]
   ${qaText}
-  [사용자 분석 인사이트]
+  [사용자 직접 작성 인사이트]
   ${userInsight || "작성된 내용 없음"}
 
-  위 인터뷰 내용과 사용자 인사이트를 종합 분석하여, 사용자에게 가장 중요한 가치를 의미하는 핵심 "추론(Inference)" 3가지를 도출해 주세요.
-  [STRICT RULE]
-  - 각 추론의 설명(description)은 제공된 인터뷰 내용을 바탕으로 아래 3가지 서술 방식 중 가장 적합한 것을 선택하여 적용해 주세요:
-    1. "인터뷰를 통해 알게 된 [구체적 내용] 내용들로 인해, [어떤 가치]가 중요한 가치라고 유추합니다."
-    2. "인터뷰를 통해 알게 된 [구체적 내용] 내용들로 인해, [어떤 가치]가 중요한 가치가 될 것이라고 유추합니다."
-    3. "인터뷰를 통해 알게 된 [구체적 내용] 내용들로 인해, [어떤 요소들]의 조합이 중요한 가치가 될 것이라고 유추합니다."
-  - 각 추론의 설명(description)은 반드시 3줄 이상의 분량으로 상세하게 작성해 주세요.
-  - 전문적이고 명확한 한국어 존댓말을 사용해 주세요.
-  Return JSON: { "inferences": [{ "id": "uuid", "title": "추론 제목", "description": "3줄 이상의 상세한 설명..." }] }`,
+  위 인터뷰 내용 전체와 사용자 인사이트를 파편적으로 보지 않고 종합적으로 분석하여, 사용자에게 가장 중요한 핵심 가치를 도출하는 "추론(Inference)" 3가지를 작성해 주세요. (개별 대화에 대한 1:1 답변이 아닌 융합적이고 종합적인 추론이어야 합니다.)
 
-  // 업데이트된 프롬프트: 중요한 가치를 중심으로 새로운 창의적 컨셉 가설 제안
+  [분석 및 도출 방식 가이드]
+  아래의 논리적 흐름 중 맥락에 가장 적합한 방식을 적용하여 추론의 내용(description)을 작성해 주세요. (반드시 아래의 용어를 토씨 하나 틀리지 않고 쓸 필요는 없으나, 분석의 논리는 반드시 지켜야 합니다.)
+  1. "인터뷰를 통해 알게 된 ~~~ 내용들로 인해 ~~~것이 중요한 가치라고 유추합니다."
+  2. "인터뷰를 통해 알게 된 ~~~ 내용들로 인해 ~~~것이 미래에 중요한 가치가 될 것이라고 유추합니다."
+  3. "인터뷰를 통해 알게 된 ~~~ 내용들로 인해 ~~~것들의 조합이 중요한 가치가 될 것이라고 유추합니다."
+
+  [STRICT RULE]
+  - 각 추론의 설명(description)은 위 분석 방식을 바탕으로 반드시 3줄 이상의 분량으로 상세하게 작성해 주세요.
+  - 모든 문장은 전문적이고 명확한 한국어 존댓말을 사용해 주세요.
+  Return JSON: { "inferences": [{ "id": "uuid", "title": "추론 제목 (핵심 가치 키워드)", "description": "3줄 이상의 종합적이고 상세한 설명..." }] }`,
+
   GENERATE_CONCEPTS: (topic, persona, qaText, userInsight, inference, perspective) => `You are a Senior UX Strategist. Topic: "${topic}". Persona: "${persona.name}".
-  [선택된 주요 대화]
+  [선택된 주요 대화 종합]
   ${qaText}
   [사용자 분석 인사이트]
   ${userInsight || "작성된 내용 없음"}
   [선택된 핵심 가치 추론]
   ${inference.title}: ${inference.description}
 
-  위 내용과 선택된 추론을 바탕으로 "${perspective}" 관점에서 디자인 컨셉 인사이트를 정확히 3개 도출해 주세요.
+  위 내용과 선택된 "핵심 가치 추론"을 중심 기반으로 삼아, "${perspective}" 관점에서 완전히 새롭고 창의적인 디자인 컨셉(가설) 3가지를 제안해 주세요. 단순한 문제 해결을 넘어, 추론된 중요한 가치들을 중심으로 새로운 창의적 컨셉이 될 수 있는 '가설'들이 제안되어야 합니다.
+
   [STRICT RULE]
-  - 제안하는 컨셉들은 앞 단계에서 추론한 '중요한 가치'들을 중심으로, 이전에 없던 창의적인 컨셉이 될 수 있는 '가설'의 형태로 제안되어야 합니다.
-  - 각 컨셉에는 반드시 도출된 "핵심 가치(coreValue)" 항목이 포함되어야 하며, 2줄 이상의 상세한 문장으로 설명해 주세요.
-  - 각 컨셉의 설명(description)은 반드시 4줄 이상의 분량으로 매우 상세하고 풍부하게 작성해 주세요.
-  - 전문적이고 명확한 한국어 존댓말을 사용해 주세요.
-  Return JSON: { "concepts": [{ "id": "uuid", "title": "Concept Title", "coreValue": "2줄 이상의 핵심 가치 설명", "description": "4줄 이상의 매우 상세한 설명..." }] }`,
+  - 각 컨셉에는 반드시 도출된 추론에 기반한 "핵심 가치(coreValue)" 항목이 포함되어야 하며, 2줄 이상의 상세한 문장으로 설명해 주세요.
+  - 각 컨셉의 설명(description)은 창의적인 가설과 구체적인 아이디어를 담아 반드시 4줄 이상의 분량으로 매우 상세하고 풍부하게 작성해 주세요.
+  - 모든 문장은 전문적이고 명확한 한국어 존댓말을 사용해 주세요.
+  Return JSON: { "concepts": [{ "id": "uuid", "title": "창의적 컨셉(가설) 제목", "coreValue": "2줄 이상의 핵심 가치 설명", "description": "4줄 이상의 매우 상세한 창의적 컨셉/가설 설명..." }] }`,
 
   GENERATE_SCENARIO: (topic, persona, concept) => `You are a Senior UX Designer. Topic: "${topic}". Persona: "${persona.name}".
   [선택된 디자인 컨셉]
@@ -342,7 +343,6 @@ const Actions = {
     if (res && res.inferences) {
       const inferencesWithId = res.inferences.map((inf, i) => ({ ...inf, id: `inf-${Date.now()}-${i}` }));
       
-      // History에 누적 기록
       const historyCopy = [...state.history];
       historyCopy[historyCopy.length - 1].inferences = inferencesWithId;
       
@@ -376,7 +376,6 @@ const Actions = {
     if (res && res.concepts) {
       const conceptsWithId = res.concepts.map((c, i) => ({ ...c, id: `c-${Date.now()}-${i}` }));
       
-      // History에 누적 기록
       const historyCopy = [...state.history];
       historyCopy[historyCopy.length - 1].perspective = perspective;
       historyCopy[historyCopy.length - 1].concepts = conceptsWithId;
@@ -402,7 +401,6 @@ const Actions = {
       "Generate Scenario"
     );
     if (res && res.scenario) {
-      // History에 누적 기록
       const historyCopy = [...state.history];
       historyCopy[historyCopy.length - 1].selectedConcept = concept;
       historyCopy[historyCopy.length - 1].scenario = res.scenario;
@@ -891,15 +889,15 @@ function render() {
             </div>
           </div>
 
-          <div class="bg-blue-600 p-6 mx-2 rounded-[2rem] mb-12 shadow-md shadow-blue-600/20 text-white">
-            <h3 class="font-black text-[16px] uppercase tracking-wider mb-5 flex items-center gap-2">
-              <i data-lucide="zap" class="w-5 h-5 text-yellow-300"></i> AI Key Insights
-            </h3>
-            <div class="text-blue-50 font-bold text-[16px] leading-relaxed whitespace-pre-line">${curH.result.keyInsights}</div>
-          </div>
-          
           <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-            <h4 class="text-[16px] font-extrabold text-slate-800 mb-3 flex items-center gap-2">
+            <div class="bg-blue-600 p-6 rounded-[2rem] mb-6 shadow-md text-white w-full">
+              <h3 class="font-black text-[16px] uppercase tracking-wider mb-3 flex items-center gap-2">
+                <i data-lucide="zap" class="w-5 h-5 text-yellow-300"></i> AI Key Insights
+              </h3>
+              <div class="text-blue-50 font-bold text-[15px] leading-relaxed whitespace-pre-line">${curH.result.keyInsights}</div>
+            </div>
+
+            <h4 class="text-[16px] font-extrabold text-slate-800 mb-3 flex items-center gap-2 mt-4">
               <i data-lucide="lightbulb" class="w-5 h-5 text-amber-500"></i> 직접 발견한 인사이트 (선택)
             </h4>
             <textarea id="user-insight-input" onchange="Actions.updateUserInsight(this.value)" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[16px] h-32 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none mb-4 text-slate-900" placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${state.userInsight}</textarea>
@@ -911,7 +909,7 @@ function render() {
         </div>`;
       break;
 
-    case 7: // Inferences
+    case 7: // Inferences 도출
       content += `
         <div class="pt-24 px-4 pb-[200px] animate-fade-in bg-slate-50 min-h-screen">
           ${renderHeader("핵심 가치 추론", 6)}
