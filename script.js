@@ -20,7 +20,7 @@ const PROMPTS = {
 
   [STRICT RULE]
   - 각 페르소나의 이름은 반드시 "김민준", "이서윤" 같은 한국식 가상의 이름을 사용하여 작성해 주세요. (예: 콘텐츠 유목민: 30대 김민준)
-  - "description"은 2줄 이상의 상세한 특성 정보를 포함해 주세요.
+  - "description"은 반드시 3줄 이상의 매우 풍부하고 상세한 특성 정보(직업적 배경, 일상, 가치관 등)를 포함해 주세요.
   - "needs"는 2줄 이상의 다양하고 구체적인 니즈를 포함해 주세요.
   - 모든 문장은 전문적이고 명확한 존댓말을 사용해 주세요.
   
@@ -34,7 +34,7 @@ const PROMPTS = {
           {
             "id": "uuid (unique string)",
             "name": "[수식어]: [직업/연령] [가상 이름]",
-            "description": "[상세 설명]",
+            "description": "[3줄 이상의 매우 상세하고 풍부한 설명]",
             "needs": "[구체적인 니즈 및 문제점]"
           }
         ]
@@ -51,7 +51,7 @@ const PROMPTS = {
   Context: ${persona.description}. Needs: ${persona.needs}.
   Answer ALL the following questions realistically as this persona:
   ${questions.map((q, i) => `${i+1}. ${q}`).join("\n")}
-  [RULE] 각 질문에 대한 답변은 5문장 정도로 상세하게 작성해 주세요. 페르소나의 성격이 드러나는 구체적인 에피소드를 반드시 포함하세요. Markdown bold(**) 사용 금지. 모든 문장은 존댓말을 사용해 주세요.
+  [RULE] 각 질문에 대한 답변은 5문장 정도로 상세하게 작성해 주세요. 페르소나의 성격이 드러나는 구체적인 에피문을 반드시 포함하세요. Markdown bold(**) 사용 금지. 모든 문장은 존댓말을 사용해 주세요.
   [FORMAT] For "keyInsights", use 1) 2) 3) format.
   Return JSON: { "summary": "Full session summary", "qaPairs": [{ "q": "Question Text", "a": "Answer Text" }], "keyInsights": "1) ... \\n 2) ..." }.`,
 
