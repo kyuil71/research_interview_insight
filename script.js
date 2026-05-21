@@ -4,8 +4,8 @@
 // 모델명 고정 (절대 변경 금지)
 const MODEL_NAME = "gemini-flash-latest"; 
 const SESSION_KEY_API = "research_lab_api_key_v31";
-const PROJECTS_STORAGE_KEY = "research_lab_projects_v31"; 
-let currentProjectId = null; 
+const PROJECTS_STORAGE_KEY = "research_lab_projects_v31"; // 다중 프로젝트 저장을 위한 키 변경
+let currentProjectId = null; // 현재 진행 중인 프로젝트 ID
 
 // --- PROMPT TEMPLATES ---
 const PROMPTS = {
@@ -298,7 +298,7 @@ const Actions = {
     const res = await callGemini(PROMPTS.GENERATE_INTERVIEW(state.researchTopic, persona, selectedTexts), "Start interview.");
     if (res) setState({ 
       history: [...state.history, { personaId: persona.id, result: res }], 
-      step: 6, // 인터뷰 진행 단계
+      step: 6,
       selectedQaIndices: [],
       userInsight: ""
     });
@@ -351,7 +351,7 @@ const Actions = {
       
       setState({ 
         currentInferences: inferencesWithId, 
-        step: 8, 
+        step: 7, 
         selectedInferenceId: null, 
         userInsight: userInsightVal,
         history: historyCopy
@@ -385,7 +385,7 @@ const Actions = {
 
       setState({ 
         currentConcepts: conceptsWithId, 
-        step: 9, 
+        step: 8, 
         selectedConceptId: null,
         history: historyCopy
       });
@@ -410,7 +410,7 @@ const Actions = {
 
       setState({ 
         currentScenario: res.scenario, 
-        step: 10,
+        step: 9,
         history: historyCopy
       });
     }
@@ -957,7 +957,7 @@ function render() {
               </div>`).join('')}
           </div>
           
-          <div class="p-6 mx-2 bg-white border border-slate-200 rounded-3xl mb-8 shadow-sm">
+          <div class="p-6 mx-2 bg-white border border-slate-200 rounded-3xl mb-12 shadow-sm">
             <h4 class="text-[16px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2 mb-4">
               <i data-lucide="message-square-plus" class="w-5 h-5"></i> 추가 질문하기
             </h4>
@@ -968,15 +968,8 @@ function render() {
               </button>
             </div>
           </div>
-
-          <div class="bg-blue-600 p-6 mx-2 rounded-[2rem] mb-10 shadow-md shadow-blue-600/20 text-white">
-            <h3 class="font-black text-[16px] uppercase tracking-wider mb-5 flex items-center gap-2">
-              <i data-lucide="zap" class="w-5 h-5 text-yellow-300"></i> AI Key Insights
-            </h3>
-            <div class="text-blue-50 font-bold text-[15px] leading-relaxed whitespace-pre-line">${curH.result.keyInsights}</div>
-          </div>
           
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto z-[60]">
             <button onclick="setState({step: 7})" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
               인터뷰 최종 결과 확인하기
             </button>
@@ -1026,9 +1019,9 @@ function render() {
           
           <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
             <h4 class="text-[16px] font-extrabold text-slate-800 mb-3 flex items-center gap-2">
-              <i data-lucide="lightbulb" class="w-5 h-5 text-amber-500"></i> 직접 발견한 인사이트 (선택)
+              <i data-lucide="lightbulb" class="w-5 h-5 text-amber-500"></i> 직접 발견한 인사이트 (필요시 입력)
             </h4>
-            <textarea id="user-insight-input" onchange="Actions.updateUserInsight(this.value)" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[16px] h-32 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none mb-4 text-slate-900" placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${state.userInsight}</textarea>
+            <textarea id="user-insight-input" onchange="Actions.updateUserInsight(this.value)" class="w-full p-4 bg-slate-50 border-2 border-blue-600 rounded-2xl text-[16px] h-32 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none mb-4 text-slate-900" placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${state.userInsight}</textarea>
             
             <button onclick="Actions.generateInferences()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
               핵심 가치 추론하기
