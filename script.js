@@ -20,7 +20,7 @@ const PROMPTS = {
 
   [STRICT RULE]
   - 각 페르소나의 이름은 반드시 "김민준", "이서윤" 같은 한국식 가상의 이름을 사용하여 작성해 주세요. (예: 콘텐츠 유목민: 30대 김민준)
-  - "description"은 3줄 이상의 매우 상세하고 풍부한 설명(직업적 전문성, 일상의 리얼리티, 가치관, 디지털 리터러시, 사회적 관계성 및 행동 양식을 포함한 풍부한 맥락 설명)을 포함해 주세요.
+  - "description"은 2줄 이상의 상세한 특성 정보를 포함해 주세요.
   - "needs"는 2줄 이상의 다양하고 구체적인 니즈를 포함해 주세요.
   - 모든 문장은 전문적이고 명확한 존댓말을 사용해 주세요.
   
@@ -34,7 +34,7 @@ const PROMPTS = {
           {
             "id": "uuid (unique string)",
             "name": "[수식어]: [직업/연령] [가상 이름]",
-            "description": "[3줄 이상의 상세한 특성 정보]",
+            "description": "[상세 설명]",
             "needs": "[구체적인 니즈 및 문제점]"
           }
         ]
@@ -298,7 +298,7 @@ const Actions = {
     const res = await callGemini(PROMPTS.GENERATE_INTERVIEW(state.researchTopic, persona, selectedTexts), "Start interview.");
     if (res) setState({ 
       history: [...state.history, { personaId: persona.id, result: res }], 
-      step: 6,
+      step: 6, // 인터뷰 진행 단계
       selectedQaIndices: [],
       userInsight: ""
     });
@@ -701,7 +701,7 @@ function render() {
         </div>`;
       break;
 
-    case 2: // Personas
+    case 2: // Personas (Grouped by Category)
       content += `
         <div class="pt-24 px-4 pb-64 animate-fade-in bg-slate-50 min-h-screen personas-page">
           ${renderHeader("타겟 제안", 1)}
@@ -734,6 +734,33 @@ function render() {
                 </div>
               </div>
             `).join('')}
+            
+            ${state.manualPersonas.length > 0 ? `
+              <div class="space-y-4 category-item manual-category">
+                <div class="bg-dark-navy p-5 rounded-3xl category-header">
+                  <h3 class="font-black text-[18px] text-white flex items-center gap-2">사용자 직접 추가</h3>
+                </div>
+                <div class="grid gap-4 persona-list">
+                  ${state.manualPersonas.map((p, i) => `
+                    <div class="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm persona-card">
+                      <h4 class="font-black text-[20px] text-slate-900 mb-3 persona-name">${p.name}</h4>
+                      <p class="text-[16px] text-slate-700 font-bold whitespace-pre-line persona-description">${p.description}</p>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+
+          <div class="space-y-4 mb-10 px-2 manual-persona-form">
+            <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
+              <h4 class="text-[16px] font-extrabold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                 <i data-lucide="pen-tool" class="w-5 h-5"></i> 직접 타겟 추가
+              </h4>
+              <input type="text" id="manual-p-name" class="w-full p-4 bg-slate-100 border-none rounded-2xl text-[16px] font-bold outline-none mb-3 focus:ring-2 focus:ring-blue-300 transition-all text-slate-800 placeholder:text-slate-500" placeholder="이름 및 특징 (예: 프로 출장러 김철수)">
+              <textarea id="manual-p-desc" class="w-full p-4 bg-slate-100 border-none rounded-2xl text-[16px] h-28 outline-none resize-none mb-3 focus:ring-2 focus:ring-blue-300 transition-all text-slate-800 placeholder:text-slate-500 font-bold" placeholder="상세 설명과 니즈를 입력하세요"></textarea>
+              <button onclick="Actions.addManualPersona()" class="w-full h-12 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-[16px] btn-active add-btn">목록에 추가</button>
+            </div>
           </div>
           
           <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto z-[60]">
@@ -778,6 +805,34 @@ function render() {
                 }).join('')}
               </div>
             `).join('')}
+
+            ${state.manualPersonas.length > 0 ? `
+              <div class="mt-8 mb-4">
+                <h3 class="font-extrabold text-[18px] text-slate-800 flex items-center gap-2">
+                  <div class="w-1 h-5 bg-blue-600 rounded-full"></div> 사용자 직접 추가
+                </h3>
+              </div>
+              <div class="grid gap-4 mb-4">
+                ${state.manualPersonas.map((p, i) => {
+                  const isDone = state.history.some(h => h.personaId === p.id);
+                  const isSel = state.selectedPersonaId === p.id;
+                  return `
+                  <div onclick="${isDone ? '' : `setState({selectedPersonaId: '${p.id}', aiSurveys: [], manualSurveys: [], selectedQuestionIds: []})`}" 
+                       class="p-5 rounded-[2rem] border-2 transition-all cursor-pointer persona-item ${isDone ? 'opacity-60 bg-slate-100 border-slate-300' : (isSel ? 'border-blue-600 bg-white shadow-lg scale-[1.02]' : 'border-slate-200 bg-white hover:border-blue-300 hover:shadow-md')}">
+                    <div class="flex items-center justify-between mb-2">
+                      <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isSel ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'} font-black text-sm">
+                          ${isSel ? '<i data-lucide="check" class="w-4 h-4"></i>' : '-'}
+                        </div>
+                        <h3 class="font-extrabold text-[18px] text-slate-900 line-clamp-1">${p.name}</h3>
+                      </div>
+                      ${isDone ? '<span class="text-[11px] font-extrabold px-2 py-1 bg-slate-300 text-slate-700 rounded-md">인터뷰 완료</span>' : ''}
+                    </div>
+                    <p class="text-[16px] text-slate-600 font-bold line-clamp-2 mt-2 pl-11">${p.description}</p>
+                  </div>`;
+                }).join('')}
+              </div>
+            ` : ''}
           </div>
           
           <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto z-[60]">
@@ -819,6 +874,14 @@ function render() {
                   }).join('')}
                 </div>
               </div>`).join('')}
+          </div>
+          
+          <div class="bg-slate-200/60 p-6 mx-2 rounded-[2rem] border border-slate-300 space-y-4 mb-10 manual-question-form">
+            <h4 class="text-[16px] font-extrabold text-slate-600 uppercase tracking-wider flex items-center gap-2 manual-title">
+              <i data-lucide="plus-circle" class="w-5 h-5"></i> 직접 질문 추가
+            </h4>
+            <textarea id="manual-q-input" class="w-full p-4 bg-white border-none rounded-2xl text-[16px] h-28 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none text-slate-900 manual-textarea" placeholder="엔터키로 구분하여 질문을 입력하세요"></textarea>
+            <button onclick="Actions.addManualQuestions()" class="w-full h-12 bg-slate-800 text-white rounded-xl font-bold text-[16px] btn-active add-btn">추가하기</button>
           </div>
           
           <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto z-[60] next-btn-area">
@@ -868,7 +931,7 @@ function render() {
         </div>`;
       break;
 
-    case 6: // Step 6: Interview Progress (인터뷰 진행)
+    case 6: // Step 6: Interview Progress
       const curH = state.history[state.history.length-1];
       const curPersona = getAllPersonas().find(p => p.id === curH.personaId);
       
@@ -914,7 +977,7 @@ function render() {
         </div>`;
       break;
 
-    case 7: // Step 7: New Interview Result Review Page (인터뷰 결과)
+    case 7: // Step 7: Interview Result Review Page (인터뷰 결과)
       const lastH = state.history[state.history.length-1];
       content += `
         <div class="pt-24 px-4 pb-[380px] animate-fade-in bg-slate-50 min-h-screen">
@@ -922,7 +985,7 @@ function render() {
           
           <div class="mb-8 px-2">
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">가상의 인터뷰 대화를<br/>진행해 주세요</h2>
-            <p class="text-blue-700 text-[16px] font-bold">선택된 대화와 아래 직접 발견한 인사이트 내용을 바탕으로 컨셉이 도출됩니다. 대화 내용은 여러개 선택할 수 있습니다.</p>
+            <p class="text-blue-700 text-[16px] font-bold">타겟의 답변을 검토하고 추가 질문을 통해 인터뷰를 마무리합니다.</p>
           </div>
 
           <div class="mb-8 p-8 mx-2 bg-gradient-to-br from-blue-900 to-sky-950 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
@@ -930,13 +993,6 @@ function render() {
             <div class="inline-block px-3 py-1 bg-white/20 rounded-full text-[11px] font-extrabold tracking-widest uppercase mb-4 border border-white/20">Summary</div>
             <h2 class="text-[26px] font-black mb-5 leading-tight text-white">${getAllPersonas().find(p => p.id === lastH.personaId)?.name}</h2>
             <p class="text-blue-50 text-[16px] leading-relaxed whitespace-pre-line font-bold opacity-90">${lastH.result.summary}</p>
-          </div>
-          
-          <div class="bg-blue-600 p-6 mx-2 rounded-[2rem] mb-10 shadow-md shadow-blue-600/20 text-white">
-            <h3 class="font-black text-[16px] uppercase tracking-wider mb-5 flex items-center gap-2">
-              <i data-lucide="zap" class="w-5 h-5 text-yellow-300"></i> AI Key Insights
-            </h3>
-            <div class="text-blue-50 font-bold text-[15px] leading-relaxed whitespace-pre-line">${lastH.result.keyInsights}</div>
           </div>
           
           <div class="space-y-6 mb-12 px-2">
@@ -961,6 +1017,13 @@ function render() {
             }).join('')}
           </div>
           
+          <div class="bg-blue-600 p-6 mx-2 rounded-[2rem] mb-12 shadow-md shadow-blue-600/20 text-white">
+            <h3 class="font-black text-[16px] uppercase tracking-wider mb-5 flex items-center gap-2">
+              <i data-lucide="zap" class="w-5 h-5 text-yellow-300"></i> AI Key Insights
+            </h3>
+            <div class="text-blue-50 font-bold text-[15px] leading-relaxed whitespace-pre-line">${lastH.result.keyInsights}</div>
+          </div>
+          
           <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
             <h4 class="text-[16px] font-extrabold text-slate-800 mb-3 flex items-center gap-2">
               <i data-lucide="lightbulb" class="w-5 h-5 text-amber-500"></i> 직접 발견한 인사이트 (필요시 입력)
@@ -968,7 +1031,7 @@ function render() {
             <textarea id="user-insight-input" onchange="Actions.updateUserInsight(this.value)" class="w-full p-4 bg-slate-50 border-2 border-blue-600 rounded-2xl text-[16px] h-32 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none mb-4 text-slate-900" placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${state.userInsight}</textarea>
             
             <button onclick="Actions.generateInferences()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
-              핵심 가치 추론하기
+              인터뷰 최종 결과 확인하기
             </button>
           </div>
         </div>`;
