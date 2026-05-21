@@ -987,6 +987,13 @@ function render() {
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">가상의 인터뷰 대화를<br/>진행해 주세요</h2>
             <p class="text-blue-700 text-[16px] font-bold">선택된 대화와 아래 직접 발견한 인사이트 내용을 바탕으로 컨셉이 도출됩니다.<br/>대화 내용은 여러 개 선택할 수 있습니다.</p>
           </div>
+
+          <div class="mb-8 p-8 mx-2 bg-gradient-to-br from-blue-900 to-sky-950 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/30 blur-2xl rounded-full"></div>
+            <div class="inline-block px-3 py-1 bg-white/20 rounded-full text-[11px] font-extrabold tracking-widest uppercase mb-4 border border-white/20">Summary</div>
+            <h2 class="text-[26px] font-black mb-5 leading-tight text-white">${getAllPersonas().find(p => p.id === lastH.personaId)?.name}</h2>
+            <p class="text-blue-50 text-[16px] leading-relaxed whitespace-pre-line font-bold opacity-90">${lastH.result.summary}</p>
+          </div>
           
           <div class="space-y-6 mb-12 px-2">
             <h3 class="font-black text-[18px] text-slate-900 px-2 flex items-center gap-2">
