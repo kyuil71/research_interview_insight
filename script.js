@@ -4,8 +4,8 @@
 // 모델명 고정 (절대 변경 금지)
 const MODEL_NAME = "gemini-flash-latest"; 
 const SESSION_KEY_API = "research_lab_api_key_v31";
-const PROJECTS_STORAGE_KEY = "research_lab_projects_v31"; 
-let currentProjectId = null; 
+const PROJECTS_STORAGE_KEY = "research_lab_projects_v31"; // 다중 프로젝트 저장을 위한 키 변경
+let currentProjectId = null; // 현재 진행 중인 프로젝트 ID
 
 // --- PROMPT TEMPLATES ---
 const PROMPTS = {
@@ -298,7 +298,7 @@ const Actions = {
     const res = await callGemini(PROMPTS.GENERATE_INTERVIEW(state.researchTopic, persona, selectedTexts), "Start interview.");
     if (res) setState({ 
       history: [...state.history, { personaId: persona.id, result: res }], 
-      step: 6, // 인터뷰 진행 단계
+      step: 6,
       selectedQaIndices: [],
       userInsight: ""
     });
@@ -931,7 +931,7 @@ function render() {
         </div>`;
       break;
 
-    case 6: // Step 6: Interview Progress
+    case 6: // Step 6: Interview Progress (인터뷰 진행)
       const curH = state.history[state.history.length-1];
       const curPersona = getAllPersonas().find(p => p.id === curH.personaId);
       
@@ -977,15 +977,15 @@ function render() {
         </div>`;
       break;
 
-    case 7: // Step 7: Interview Result Review Page (인터뷰 결과)
+    case 7: // Step 7: New Interview Result Review Page (인터뷰 결과)
       const lastH = state.history[state.history.length-1];
       content += `
         <div class="pt-24 px-4 pb-[380px] animate-fade-in bg-slate-50 min-h-screen">
           ${renderHeader("인터뷰 결과", 6)}
           
           <div class="mb-8 px-2">
-            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">가상의 인터뷰 대화를<br/>진행해 주세요</h2>
-            <p class="text-blue-700 text-[16px] font-bold">타겟의 답변을 검토하고 추가 질문을 통해 인터뷰를 마무리합니다.</p>
+            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">중요한 인사이트를<br/>선택해 주세요</h2>
+            <p class="text-blue-700 text-[16px] font-bold">선택된 대화와 아래 작성 내용을 바탕으로 컨셉이 도출됩니다.</p>
           </div>
 
           <div class="mb-8 p-8 mx-2 bg-gradient-to-br from-blue-900 to-sky-950 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
@@ -1017,13 +1017,6 @@ function render() {
             }).join('')}
           </div>
           
-          <div class="bg-blue-600 p-6 mx-2 rounded-[2rem] mb-12 shadow-md shadow-blue-600/20 text-white">
-            <h3 class="font-black text-[16px] uppercase tracking-wider mb-5 flex items-center gap-2">
-              <i data-lucide="zap" class="w-5 h-5 text-yellow-300"></i> AI Key Insights
-            </h3>
-            <div class="text-blue-50 font-bold text-[15px] leading-relaxed whitespace-pre-line">${lastH.result.keyInsights}</div>
-          </div>
-          
           <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
             <h4 class="text-[16px] font-extrabold text-slate-800 mb-3 flex items-center gap-2">
               <i data-lucide="lightbulb" class="w-5 h-5 text-amber-500"></i> 직접 발견한 인사이트 (필요시 입력)
@@ -1031,7 +1024,7 @@ function render() {
             <textarea id="user-insight-input" onchange="Actions.updateUserInsight(this.value)" class="w-full p-4 bg-slate-50 border-2 border-blue-600 rounded-2xl text-[16px] h-32 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none mb-4 text-slate-900" placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${state.userInsight}</textarea>
             
             <button onclick="Actions.generateInferences()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
-              인터뷰 최종 결과 확인하기
+              핵심 가치 추론하기
             </button>
           </div>
         </div>`;
