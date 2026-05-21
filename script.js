@@ -4,8 +4,8 @@
 // 모델명 고정 (절대 변경 금지)
 const MODEL_NAME = "gemini-flash-latest"; 
 const SESSION_KEY_API = "research_lab_api_key_v31";
-const PROJECTS_STORAGE_KEY = "research_lab_projects_v31"; // 다중 프로젝트 저장을 위한 키 변경
-let currentProjectId = null; // 현재 진행 중인 프로젝트 ID
+const PROJECTS_STORAGE_KEY = "research_lab_projects_v31"; 
+let currentProjectId = null; 
 
 // --- PROMPT TEMPLATES ---
 const PROMPTS = {
@@ -20,7 +20,7 @@ const PROMPTS = {
 
   [STRICT RULE]
   - 각 페르소나의 이름은 반드시 "김민준", "이서윤" 같은 한국식 가상의 이름을 사용하여 작성해 주세요. (예: 콘텐츠 유목민: 30대 김민준)
-  - "description"은 반드시 3줄 이상의 매우 풍부하고 상세한 특성 정보(직업적 배경, 일상, 가치관 등)를 포함해 주세요.
+  - "description"은 2줄 이상의 상세한 특성 정보를 포함해 주세요.
   - "needs"는 2줄 이상의 다양하고 구체적인 니즈를 포함해 주세요.
   - 모든 문장은 전문적이고 명확한 존댓말을 사용해 주세요.
   
@@ -34,7 +34,7 @@ const PROMPTS = {
           {
             "id": "uuid (unique string)",
             "name": "[수식어]: [직업/연령] [가상 이름]",
-            "description": "[3줄 이상의 매우 상세하고 풍부한 설명]",
+            "description": "[상세 설명]",
             "needs": "[구체적인 니즈 및 문제점]"
           }
         ]
@@ -51,7 +51,7 @@ const PROMPTS = {
   Context: ${persona.description}. Needs: ${persona.needs}.
   Answer ALL the following questions realistically as this persona:
   ${questions.map((q, i) => `${i+1}. ${q}`).join("\n")}
-  [RULE] 각 질문에 대한 답변은 5문장 정도로 상세하게 작성해 주세요. 페르소나의 성격이 드러나는 구체적인 에피문을 반드시 포함하세요. Markdown bold(**) 사용 금지. 모든 문장은 존댓말을 사용해 주세요.
+  [RULE] 각 질문에 대한 답변은 5문장 정도로 상세하게 작성해 주세요. 페르소나의 성격이 드러나는 구체적인 에피소드를 반드시 포함하세요. Markdown bold(**) 사용 금지. 모든 문장은 존댓말을 사용해 주세요.
   [FORMAT] For "keyInsights", use 1) 2) 3) format.
   Return JSON: { "summary": "Full session summary", "qaPairs": [{ "q": "Question Text", "a": "Answer Text" }], "keyInsights": "1) ... \\n 2) ..." }.`,
 
@@ -69,7 +69,7 @@ const PROMPTS = {
   위 인터뷰 내용 전체와 사용자 인사이트를 파편적으로 보지 않고 종합적으로 분석하여, 사용자에게 가장 중요한 핵심 가치를 도출하는 "추론(Inference)" 3가지를 작성해 주세요. (개별 대화에 대한 1:1 답변이 아닌 융합적이고 종합적인 추론이어야 합니다.)
 
   [분석 및 도출 방식 가이드]
-  아래의 논리적 흐름 중 맥락에 가장 적합한 방식을 적용하여 추론의 내용(description)을 작성해 주세요. (반드시 아래의 용어를 토씨 하나 틀리지 않고 쓸 필요는 없으나, 분석의 논리는 반드시 지켜야 합니다.)
+  아래의 논리적 흐름 중 맥락에 가장 적합한 방식을 적용하여 추론의 내용(description)을 작성해 주세요.
   1. "인터뷰를 통해 알게 된 ~~~ 내용들로 인해 ~~~것이 중요한 가치라고 유추합니다."
   2. "인터뷰를 통해 알게 된 ~~~ 내용들로 인해 ~~~것이 미래에 중요한 가치가 될 것이라고 유추합니다."
   3. "인터뷰를 통해 알게 된 ~~~ 내용들로 인해 ~~~것들의 조합이 중요한 가치가 될 것이라고 유추합니다."
@@ -298,7 +298,7 @@ const Actions = {
     const res = await callGemini(PROMPTS.GENERATE_INTERVIEW(state.researchTopic, persona, selectedTexts), "Start interview.");
     if (res) setState({ 
       history: [...state.history, { personaId: persona.id, result: res }], 
-      step: 6,
+      step: 6, // 인터뷰 진행 단계
       selectedQaIndices: [],
       userInsight: ""
     });
@@ -351,7 +351,7 @@ const Actions = {
       
       setState({ 
         currentInferences: inferencesWithId, 
-        step: 7, 
+        step: 8, 
         selectedInferenceId: null, 
         userInsight: userInsightVal,
         history: historyCopy
@@ -385,7 +385,7 @@ const Actions = {
 
       setState({ 
         currentConcepts: conceptsWithId, 
-        step: 8, 
+        step: 9, 
         selectedConceptId: null,
         history: historyCopy
       });
@@ -410,7 +410,7 @@ const Actions = {
 
       setState({ 
         currentScenario: res.scenario, 
-        step: 9,
+        step: 10,
         history: historyCopy
       });
     }
@@ -931,13 +931,64 @@ function render() {
         </div>`;
       break;
 
-    case 6: // Report
+    case 6: // Step 6: Interview Progress (인터뷰 진행)
       const curH = state.history[state.history.length-1];
       const curPersona = getAllPersonas().find(p => p.id === curH.personaId);
       
       content += `
+        <div class="pt-24 px-4 pb-[150px] animate-fade-in bg-slate-50 min-h-screen">
+          ${renderHeader("인터뷰 진행", 5)}
+          
+          <div class="mb-8 px-2">
+            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">가상의 인터뷰 대화를<br/>진행해 주세요</h2>
+            <p class="text-blue-700 text-[16px] font-bold">타겟의 답변을 검토하고 추가 질문을 통해 인터뷰를 마무리합니다.</p>
+          </div>
+
+          <div class="space-y-6 mb-12 px-2">
+            ${curH.result.qaPairs.map((qa, i) => `
+              <div class="p-6 rounded-[2rem] border-2 border-slate-200 bg-white shadow-sm">
+                <div class="flex gap-3 mb-4 pr-8">
+                  <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold flex items-center justify-center shrink-0 text-sm">Q${i+1}</div>
+                  <div class="text-slate-900 font-extrabold text-[16px] leading-snug pt-1">${qa.q}</div>
+                </div>
+                <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 text-slate-700 font-bold text-[16px] leading-relaxed">
+                  ${qa.a}
+                </div>
+              </div>`).join('')}
+          </div>
+          
+          <div class="p-6 mx-2 bg-white border border-slate-200 rounded-3xl mb-8 shadow-sm">
+            <h4 class="text-[16px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2 mb-4">
+              <i data-lucide="message-square-plus" class="w-5 h-5"></i> 추가 질문하기
+            </h4>
+            <div class="flex gap-2">
+              <input type="text" id="followup-input" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[16px] outline-none focus:ring-2 focus:ring-blue-200 font-bold placeholder:text-slate-400 text-slate-900" placeholder="더 궁금한 점을 물어보세요">
+              <button onclick="Actions.askFollowUp()" class="shrink-0 w-14 h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl shadow-md flex items-center justify-center btn-active transition-colors">
+                <i data-lucide="send" class="w-5 h-5"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-blue-600 p-6 mx-2 rounded-[2rem] mb-10 shadow-md shadow-blue-600/20 text-white">
+            <h3 class="font-black text-[16px] uppercase tracking-wider mb-5 flex items-center gap-2">
+              <i data-lucide="zap" class="w-5 h-5 text-yellow-300"></i> AI Key Insights
+            </h3>
+            <div class="text-blue-50 font-bold text-[15px] leading-relaxed whitespace-pre-line">${curH.result.keyInsights}</div>
+          </div>
+          
+          <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+            <button onclick="setState({step: 7})" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
+              인터뷰 최종 결과 확인하기
+            </button>
+          </div>
+        </div>`;
+      break;
+
+    case 7: // Step 7: New Interview Result Review Page (인터뷰 결과)
+      const lastH = state.history[state.history.length-1];
+      content += `
         <div class="pt-24 px-4 pb-[380px] animate-fade-in bg-slate-50 min-h-screen">
-          ${renderHeader("인터뷰 결과", 3)}
+          ${renderHeader("인터뷰 결과", 6)}
           
           <div class="mb-8 px-2">
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">중요한 인사이트를<br/>선택해 주세요</h2>
@@ -947,15 +998,15 @@ function render() {
           <div class="mb-8 p-8 mx-2 bg-gradient-to-br from-blue-900 to-sky-950 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
             <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/30 blur-2xl rounded-full"></div>
             <div class="inline-block px-3 py-1 bg-white/20 rounded-full text-[11px] font-extrabold tracking-widest uppercase mb-4 border border-white/20">Summary</div>
-            <h2 class="text-[26px] font-black mb-5 leading-tight text-white">${curPersona.name}</h2>
-            <p class="text-blue-50 text-[16px] leading-relaxed whitespace-pre-line font-bold opacity-90">${curH.result.summary}</p>
+            <h2 class="text-[26px] font-black mb-5 leading-tight text-white">${getAllPersonas().find(p => p.id === lastH.personaId)?.name}</h2>
+            <p class="text-blue-50 text-[16px] leading-relaxed whitespace-pre-line font-bold opacity-90">${lastH.result.summary}</p>
           </div>
           
           <div class="space-y-6 mb-12 px-2">
             <h3 class="font-black text-[18px] text-slate-900 px-2 flex items-center gap-2">
               <i data-lucide="message-square" class="w-5 h-5"></i> 대화 내용 (Q&A)
             </h3>
-            ${curH.result.qaPairs.map((qa, i) => {
+            ${lastH.result.qaPairs.map((qa, i) => {
               const isSel = state.selectedQaIndices.includes(i);
               return `
               <div onclick="Actions.toggleQaSelection(${i})" class="p-6 rounded-[2rem] border-2 transition-all cursor-pointer bg-white relative ${isSel ? 'border-blue-600 shadow-md ring-2 ring-blue-600/20' : 'border-slate-200 shadow-sm'}">
@@ -973,27 +1024,8 @@ function render() {
             }).join('')}
           </div>
           
-          <div class="p-6 mx-2 bg-white border border-slate-200 rounded-3xl mb-12 shadow-sm">
-            <h4 class="text-[16px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2 mb-4">
-              <i data-lucide="message-square-plus" class="w-5 h-5"></i> 추가 질문하기
-            </h4>
-            <div class="flex gap-2">
-              <input type="text" id="followup-input" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[16px] outline-none focus:ring-2 focus:ring-blue-200 font-bold placeholder:text-slate-400 text-slate-900" placeholder="더 궁금한 점을 물어보세요">
-              <button onclick="Actions.askFollowUp()" class="shrink-0 w-14 h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl shadow-md flex items-center justify-center btn-active transition-colors">
-                <i data-lucide="send" class="w-5 h-5"></i>
-              </button>
-            </div>
-          </div>
-
           <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-            <div class="bg-blue-600 p-6 rounded-[2rem] mb-6 shadow-md text-white w-full">
-              <h3 class="font-black text-[16px] uppercase tracking-wider mb-3 flex items-center gap-2">
-                <i data-lucide="zap" class="w-5 h-5 text-yellow-300"></i> AI Key Insights
-              </h3>
-              <div class="text-blue-50 font-bold text-[15px] leading-relaxed whitespace-pre-line">${curH.result.keyInsights}</div>
-            </div>
-
-            <h4 class="text-[16px] font-extrabold text-slate-800 mb-3 flex items-center gap-2 mt-4">
+            <h4 class="text-[16px] font-extrabold text-slate-800 mb-3 flex items-center gap-2">
               <i data-lucide="lightbulb" class="w-5 h-5 text-amber-500"></i> 직접 발견한 인사이트 (선택)
             </h4>
             <textarea id="user-insight-input" onchange="Actions.updateUserInsight(this.value)" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[16px] h-32 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none mb-4 text-slate-900" placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${state.userInsight}</textarea>
@@ -1005,10 +1037,10 @@ function render() {
         </div>`;
       break;
 
-    case 7: // Inferences 도출
+    case 8: // Inferences 도출
       content += `
         <div class="pt-24 px-4 pb-[200px] animate-fade-in bg-slate-50 min-h-screen">
-          ${renderHeader("핵심 가치 추론", 6)}
+          ${renderHeader("핵심 가치 추론", 7)}
           
           <div class="mb-8 px-2">
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">인터뷰 기반<br/>핵심 가치 추론</h2>
@@ -1038,11 +1070,11 @@ function render() {
         </div>`;
       break;
 
-    case 8: // Design Concepts & Perspectives
+    case 9: // Design Concepts & Perspectives
       const perspectives = ["종합적 관점", "독창성 관점", "기술적 관점", "비즈니스 관점"];
       content += `
         <div class="pt-24 px-4 pb-[300px] animate-fade-in bg-slate-50 min-h-screen">
-          ${renderHeader("컨셉 도출", 7)}
+          ${renderHeader("컨셉 도출", 8)}
           
           <div class="mb-8 px-2">
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">핵심 추론 기반<br/>디자인 컨셉</h2>
@@ -1088,10 +1120,10 @@ function render() {
         </div>`;
       break;
 
-    case 9: // Concept Scenario
+    case 10: // Concept Scenario
       content += `
         <div class="pt-24 px-6 pb-40 animate-fade-in bg-slate-50 min-h-screen">
-          ${renderHeader("컨셉 시나리오", 8)}
+          ${renderHeader("컨셉 시나리오", 9)}
           
           <div class="mb-8">
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900 leading-snug">사용자 경험<br/>시나리오</h2>
@@ -1127,7 +1159,6 @@ function render() {
 window.onload = () => {
   render();
   setInterval(() => {
-    // 주기적 프로젝트 자동 저장 로직
     if (state.step > 0 || (state.step === 1 && state.researchTopic.trim() !== "")) {
       const { apiKey, isAnalyzing, errorMsg, ...dataToSave } = state;
       
