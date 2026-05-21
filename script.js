@@ -969,6 +969,13 @@ function render() {
             </div>
           </div>
           
+          <div class="bg-blue-600 p-6 mx-2 rounded-[2rem] mb-12 shadow-md shadow-blue-600/20 text-white">
+            <h3 class="font-black text-[16px] uppercase tracking-wider mb-5 flex items-center gap-2">
+              <i data-lucide="zap" class="w-5 h-5 text-yellow-300"></i> AI Key Insights
+            </h3>
+            <div class="text-blue-50 font-bold text-[15px] leading-relaxed whitespace-pre-line">${curH.result.keyInsights}</div>
+          </div>
+
           <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto z-[60]">
             <button onclick="setState({step: 7})" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
               인터뷰 최종 결과 확인하기
@@ -984,7 +991,7 @@ function render() {
           ${renderHeader("인터뷰 결과", 6)}
           
           <div class="mb-8 px-2">
-            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">가상의 인터뷰 대화를<br/>진행해 주세요</h2>
+            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">중요한 인사이트를<br/>선택해 주세요</h2>
             <p class="text-blue-700 text-[16px] font-bold">선택된 대화와 아래 직접 발견한 인사이트 내용을 바탕으로 컨셉이 도출됩니다.<br/>대화 내용은 여러 개 선택할 수 있습니다.</p>
           </div>
 
@@ -1015,13 +1022,6 @@ function render() {
                 </div>
               </div>`
             }).join('')}
-          </div>
-          
-          <div class="bg-blue-600 p-6 mx-2 rounded-[2rem] mb-12 shadow-md shadow-blue-600/20 text-white">
-            <h3 class="font-black text-[16px] uppercase tracking-wider mb-5 flex items-center gap-2">
-              <i data-lucide="zap" class="w-5 h-5 text-yellow-300"></i> AI Key Insights
-            </h3>
-            <div class="text-blue-50 font-bold text-[15px] leading-relaxed whitespace-pre-line">${lastH.result.keyInsights}</div>
           </div>
           
           <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
