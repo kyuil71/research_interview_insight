@@ -691,7 +691,7 @@ function render() {
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900 leading-snug">어떤 사용자 경험을<br/>개선하고 싶으신가요?</h2>
             <p class="text-slate-600 font-bold text-[15px]">해결하고자 하는 문제나 타겟 시장을 구체적으로 적어주시면 더 정확한 결과를 얻을 수 있습니다.</p>
           </div>
-          <div class="relative bg-white rounded-3xl shadow-sm border border-slate-200 p-2 mb-20">
+          <div class="relative bg-white rounded-3xl shadow-sm border border-slate-200 p-2 mb-6">
             <textarea id="topic-input" class="w-full h-64 p-5 bg-transparent border-none text-[17px] outline-none placeholder:text-slate-400 font-bold leading-relaxed resize-none text-slate-800" placeholder="예: 해외 여행 계획 시 정보의 파편화로 인해 피로도를 느끼는 1인 가구 직장인">${state.researchTopic}</textarea>
           </div>
           
@@ -752,7 +752,7 @@ function render() {
             ` : ''}
           </div>
 
-          <div class="space-y-4 mb-10 px-2 manual-persona-form">
+          <div class="space-y-4 mb-6 px-2 manual-persona-form">
             <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
               <h4 class="text-[16px] font-extrabold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                  <i data-lucide="pen-tool" class="w-5 h-5"></i> 직접 타겟 추가
@@ -777,7 +777,7 @@ function render() {
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900 leading-snug">누구와 먼저<br/>대화를 나눌까요?</h2>
           </div>
           
-          <div class="px-2">
+          <div class="px-2 mb-6">
             ${state.aiCategories.map(cat => `
               <div class="mt-8 mb-4">
                 <h3 class="font-extrabold text-[18px] text-slate-800 flex items-center gap-2">
@@ -876,7 +876,7 @@ function render() {
               </div>`).join('')}
           </div>
           
-          <div class="bg-slate-200/60 p-6 mx-2 rounded-[2rem] border border-slate-300 space-y-4 mb-10 manual-question-form">
+          <div class="bg-slate-200/60 p-6 mx-2 rounded-[2rem] border border-slate-300 space-y-4 mb-6 manual-question-form">
             <h4 class="text-[16px] font-extrabold text-slate-600 uppercase tracking-wider flex items-center gap-2 manual-title">
               <i data-lucide="plus-circle" class="w-5 h-5"></i> 직접 질문 추가
             </h4>
@@ -909,7 +909,7 @@ function render() {
             <p class="text-slate-600 font-bold text-[16px]">아래 대상과 가상 인터뷰를 진행합니다.</p>
           </div>
           
-          <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-md mb-8 persona-card">
+          <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-md mb-6 persona-card">
             <div class="mb-6 border-b border-slate-200 pb-5 text-center persona-header">
               <h3 class="font-extrabold text-[22px] text-blue-900">${selectedP?.name}</h3>
             </div>
@@ -940,249 +940,4 @@ function render() {
           ${renderHeader("인터뷰 진행", 5)}
           
           <div class="mb-8 px-2">
-            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">가상의 인터뷰 대화를<br/>진행해 주세요</h2>
-            <p class="text-blue-700 text-[16px] font-bold">타겟의 답변을 검토하고 추가 질문을 통해 인터뷰를 마무리합니다.</p>
-          </div>
-
-          <div class="space-y-6 mb-12 px-2">
-            ${curH.result.qaPairs.map((qa, i) => `
-              <div class="p-6 rounded-[2rem] border-2 border-slate-200 bg-white shadow-sm">
-                <div class="flex gap-3 mb-4 pr-8">
-                  <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold flex items-center justify-center shrink-0 text-sm">Q${i+1}</div>
-                  <div class="text-slate-900 font-extrabold text-[16px] leading-snug pt-1">${qa.q}</div>
-                </div>
-                <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 text-slate-700 font-bold text-[16px] leading-relaxed">
-                  ${qa.a}
-                </div>
-              </div>`).join('')}
-          </div>
-          
-          <div class="p-6 mx-2 bg-white border border-slate-200 rounded-3xl mb-12 shadow-sm">
-            <h4 class="text-[16px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2 mb-4">
-              <i data-lucide="message-square-plus" class="w-5 h-5"></i> 추가 질문하기
-            </h4>
-            <div class="flex gap-2">
-              <input type="text" id="followup-input" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[16px] outline-none focus:ring-2 focus:ring-blue-200 font-bold placeholder:text-slate-400 text-slate-900" placeholder="더 궁금한 점을 물어보세요">
-              <button onclick="Actions.askFollowUp()" class="shrink-0 w-14 h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl shadow-md flex items-center justify-center btn-active transition-colors">
-                <i data-lucide="send" class="w-5 h-5"></i>
-              </button>
-            </div>
-          </div>
-          
-          <div class="bg-blue-600 p-6 mx-2 rounded-[2rem] mb-12 shadow-md shadow-blue-600/20 text-white">
-            <h3 class="font-black text-[16px] uppercase tracking-wider mb-5 flex items-center gap-2">
-              <i data-lucide="zap" class="w-5 h-5 text-yellow-300"></i> AI Key Insights
-            </h3>
-            <div class="text-blue-50 font-bold text-[15px] leading-relaxed whitespace-pre-line">${curH.result.keyInsights}</div>
-          </div>
-
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto z-[60]">
-            <button onclick="setState({step: 7})" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
-              인터뷰 최종 결과 확인하기
-            </button>
-          </div>
-        </div>`;
-      break;
-
-    case 7: // Step 7: New Interview Result Review Page (인터뷰 결과)
-      const lastH = state.history[state.history.length-1];
-      content += `
-        <div class="pt-24 px-4 pb-[380px] animate-fade-in bg-slate-50 min-h-screen">
-          ${renderHeader("인터뷰 결과", 6)}
-          
-          <div class="mb-8 px-2">
-            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">중요한 인사이트를<br/>선택해 주세요</h2>
-            <p class="text-blue-700 text-[16px] font-bold">선택된 대화와 아래 직접 발견한 인사이트 내용을 바탕으로 컨셉이 도출됩니다.<br/>대화 내용은 여러 개 선택할 수 있습니다.</p>
-          </div>
-
-          <div class="mb-8 p-8 mx-2 bg-gradient-to-br from-blue-900 to-sky-950 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
-            <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/30 blur-2xl rounded-full"></div>
-            <div class="inline-block px-3 py-1 bg-white/20 rounded-full text-[11px] font-extrabold tracking-widest uppercase mb-4 border border-white/20">Summary</div>
-            <h2 class="text-[26px] font-black mb-5 leading-tight text-white">${getAllPersonas().find(p => p.id === lastH.personaId)?.name}</h2>
-            <p class="text-blue-50 text-[16px] leading-relaxed whitespace-pre-line font-bold opacity-90">${lastH.result.summary}</p>
-          </div>
-          
-          <div class="space-y-6 mb-12 px-2">
-            <h3 class="font-black text-[18px] text-slate-900 px-2 flex items-center gap-2">
-              <i data-lucide="message-square" class="w-5 h-5"></i> 대화 내용 (Q&A)
-            </h3>
-            ${lastH.result.qaPairs.map((qa, i) => {
-              const isSel = state.selectedQaIndices.includes(i);
-              return `
-              <div onclick="Actions.toggleQaSelection(${i})" class="p-6 rounded-[2rem] border-2 transition-all cursor-pointer bg-white relative ${isSel ? 'border-blue-600 shadow-md ring-2 ring-blue-600/20' : 'border-slate-200 shadow-sm'}">
-                <div class="absolute top-6 right-6 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSel ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-transparent'}">
-                  <i data-lucide="check" class="w-3.5 h-3.5"></i>
-                </div>
-                <div class="flex gap-3 mb-4 pr-8">
-                  <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold flex items-center justify-center shrink-0 text-sm">Q${i+1}</div>
-                  <div class="text-slate-900 font-extrabold text-[16px] leading-snug pt-1">${qa.q}</div>
-                </div>
-                <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 text-slate-700 font-bold text-[16px] leading-relaxed">
-                  ${qa.a}
-                </div>
-              </div>`
-            }).join('')}
-          </div>
-          
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-            <h4 class="text-[16px] font-extrabold text-slate-800 mb-3 flex items-center gap-2">
-              <i data-lucide="lightbulb" class="w-5 h-5 text-amber-500"></i> 직접 발견한 인사이트 (필요시 입력)
-            </h4>
-            <textarea id="user-insight-input" onchange="Actions.updateUserInsight(this.value)" class="w-full p-4 bg-slate-50 border-2 border-blue-600 rounded-2xl text-[16px] h-32 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none mb-4 text-slate-900" placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${state.userInsight}</textarea>
-            
-            <button onclick="Actions.generateInferences()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
-              핵심 가치 추론하기
-            </button>
-          </div>
-        </div>`;
-      break;
-
-    case 8: // Inferences 도출
-      content += `
-        <div class="pt-24 px-4 pb-[200px] animate-fade-in bg-slate-50 min-h-screen">
-          ${renderHeader("핵심 가치 추론", 7)}
-          
-          <div class="mb-8 px-2">
-            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">인터뷰 기반<br/>핵심 가치 추론</h2>
-            <p class="text-blue-700 text-[16px] font-bold">사용자에게 가장 중요한 가치를 선택해 주세요.</p>
-          </div>
-
-          <div class="space-y-4 mb-10 px-2">
-            ${state.currentInferences.map((inf, i) => {
-              const isSel = state.selectedInferenceId === inf.id;
-              return `
-              <div onclick="setState({selectedInferenceId: '${inf.id}'})" class="p-6 rounded-[2rem] border-2 transition-all cursor-pointer bg-white relative ${isSel ? 'border-blue-600 shadow-md ring-2 ring-blue-600/20' : 'border-slate-200 shadow-sm'}">
-                <div class="absolute top-6 right-6 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSel ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-transparent'}">
-                  <i data-lucide="check" class="w-3.5 h-3.5"></i>
-                </div>
-                <div class="inline-block px-3 py-1 bg-blue-50 text-blue-700 rounded-md text-[11px] font-extrabold tracking-widest uppercase mb-3 border border-blue-100">Inference ${i+1}</div>
-                <h3 class="font-extrabold text-[18px] text-slate-900 mb-3 pr-8 leading-snug">${inf.title}</h3>
-                <p class="text-slate-700 font-bold text-[16px] leading-relaxed whitespace-pre-line">${inf.description}</p>
-              </div>`
-            }).join('')}
-          </div>
-
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-            <button onclick="Actions.generateConcepts()" ${!state.selectedInferenceId ? 'disabled' : ''} class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg disabled:opacity-50 btn-active">
-              선택한 추론으로 디자인 컨셉 도출
-            </button>
-          </div>
-        </div>`;
-      break;
-
-    case 9: // Design Concepts & Perspectives
-      const perspectives = ["종합적 관점", "독창성 관점", "기술적 관점", "비즈니스 관점"];
-      content += `
-        <div class="pt-24 px-4 pb-[300px] animate-fade-in bg-slate-50 min-h-screen">
-          ${renderHeader("컨셉 도출", 8)}
-          
-          <div class="mb-8 px-2">
-            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">핵심 추론 기반<br/>디자인 컨셉</h2>
-            <p class="text-blue-700 text-[16px] font-bold">마음에 드는 컨셉 하나를 선택해 시나리오를 확인하세요.</p>
-          </div>
-
-          <div class="space-y-4 mb-10 px-2">
-            ${state.currentConcepts.map((c, i) => {
-              const isSel = state.selectedConceptId === c.id;
-              return `
-              <div onclick="setState({selectedConceptId: '${c.id}'})" class="p-6 rounded-[2rem] border-2 transition-all cursor-pointer bg-white relative ${isSel ? 'border-blue-600 shadow-md ring-2 ring-blue-600/20' : 'border-slate-200 shadow-sm'}">
-                <div class="absolute top-6 right-6 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSel ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-transparent'}">
-                  <i data-lucide="check" class="w-3.5 h-3.5"></i>
-                </div>
-                <div class="inline-block px-3 py-1 bg-blue-50 text-blue-700 rounded-md text-[11px] font-extrabold tracking-widest uppercase mb-3 border border-blue-100">Concept ${i+1}</div>
-                <h3 class="font-extrabold text-[18px] text-slate-900 mb-2 pr-8 leading-snug">${c.title}</h3>
-                <p class="font-extrabold text-blue-700 block mb-3 text-[14px]">핵심 가치: ${c.coreValue}</p>
-                <p class="text-slate-700 font-bold text-[16px] leading-relaxed whitespace-pre-line">${c.description}</p>
-              </div>`
-            }).join('')}
-          </div>
-
-          <div class="mb-10 px-2">
-            <button onclick="setState({step: 3})" class="w-full h-14 bg-white border-2 border-slate-200 text-slate-700 rounded-2xl font-bold text-[16px] flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors btn-active shadow-sm">
-              <i data-lucide="users" class="w-5 h-5"></i> 다른 타겟 인터뷰하기
-            </button>
-          </div>
-
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-            <div class="grid grid-cols-2 gap-2 mb-4">
-              ${perspectives.map(p => {
-                const isActive = state.currentPerspective === p;
-                return `
-                <button onclick="Actions.generateConcepts('${p}')" class="py-3 rounded-xl font-bold text-[14px] border transition-all ${isActive ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}">
-                  ${p}
-                </button>`
-              }).join('')}
-            </div>
-            <button onclick="Actions.generateScenario()" ${!state.selectedConceptId ? 'disabled' : ''} class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg disabled:opacity-50 btn-active">
-              컨셉 시나리오 보기
-            </button>
-          </div>
-        </div>`;
-      break;
-
-    case 10: // Concept Scenario
-      content += `
-        <div class="pt-24 px-6 pb-40 animate-fade-in bg-slate-50 min-h-screen">
-          ${renderHeader("컨셉 시나리오", 9)}
-          
-          <div class="mb-8">
-            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900 leading-snug">사용자 경험<br/>시나리오</h2>
-            <p class="text-blue-700 text-[16px] font-bold">선택하신 컨셉이 적용된 미래의 모습을 확인하세요.</p>
-          </div>
-
-          <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-md mb-8 relative">
-            <button onclick="copyScenarioToClipboard()" class="absolute top-6 right-6 p-2 text-slate-400 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 rounded-lg transition-colors" title="시나리오 복사하기">
-              <i data-lucide="copy" class="w-5 h-5"></i>
-            </button>
-            <div class="text-slate-900 font-bold text-[16px] leading-loose whitespace-pre-line mt-4">
-              ${state.currentScenario}
-            </div>
-          </div>
-
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto space-y-3 z-[60]">
-            <button onclick="copyReportToClipboard()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[16px] shadow-lg btn-active flex items-center justify-center gap-2">
-              <i data-lucide="copy" class="w-5 h-5"></i> 전체 리포트 복사하기
-            </button>
-            <button onclick="setState({step: 0})" class="w-full h-14 bg-white border border-slate-200 text-slate-700 rounded-2xl font-bold text-[16px] flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors btn-active shadow-sm">
-              <i data-lucide="home" class="w-5 h-5"></i> 처음으로 돌아가기
-            </button>
-          </div>
-        </div>`;
-      break;
-  }
-  
-  root.innerHTML = `<div class="w-full max-w-[430px] mx-auto min-h-screen shadow-[0_0_50px_rgba(0,0,0,0.05)] relative overflow-x-hidden bg-slate-50">${content}</div>`;
-  lucide.createIcons();
-}
-
-// --- BOOTSTRAP ---
-window.onload = () => {
-  render();
-  setInterval(() => {
-    if (state.step > 0 || (state.step === 1 && state.researchTopic.trim() !== "")) {
-      const { apiKey, isAnalyzing, errorMsg, ...dataToSave } = state;
-      
-      let projects = {};
-      try {
-        projects = JSON.parse(localStorage.getItem(PROJECTS_STORAGE_KEY)) || {};
-      } catch(e) {}
-
-      if (!currentProjectId) {
-        currentProjectId = 'proj_' + Date.now();
-      }
-
-      let title = state.researchTopic.trim();
-      if (!title) title = "새 프로젝트 " + new Date().toLocaleTimeString();
-      else if (title.length > 20) title = title.substring(0, 20) + "...";
-
-      projects[currentProjectId] = {
-        id: currentProjectId,
-        title: title,
-        updatedAt: Date.now(),
-        data: dataToSave
-      };
-
-      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
-    }
-  }, 5000);
-};
+            <h2 class="
