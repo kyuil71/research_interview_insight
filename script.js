@@ -4,8 +4,8 @@
 // 모델명 고정 (절대 변경 금지)
 const MODEL_NAME = "gemini-flash-latest"; 
 const SESSION_KEY_API = "research_lab_api_key_v31";
-const PROJECTS_STORAGE_KEY = "research_lab_projects_v31"; 
-let currentProjectId = null; 
+const PROJECTS_STORAGE_KEY = "research_lab_projects_v31"; // 다중 프로젝트 저장을 위한 키 변경
+let currentProjectId = null; // 현재 진행 중인 프로젝트 ID
 
 // --- PROMPT TEMPLATES ---
 const PROMPTS = {
@@ -351,7 +351,7 @@ const Actions = {
       
       setState({ 
         currentInferences: inferencesWithId, 
-        step: 7, 
+        step: 8, 
         selectedInferenceId: null, 
         userInsight: userInsightVal,
         history: historyCopy
@@ -385,7 +385,7 @@ const Actions = {
 
       setState({ 
         currentConcepts: conceptsWithId, 
-        step: 8, 
+        step: 9, 
         selectedConceptId: null,
         history: historyCopy
       });
@@ -410,7 +410,7 @@ const Actions = {
 
       setState({ 
         currentScenario: res.scenario, 
-        step: 9,
+        step: 10,
         history: historyCopy
       });
     }
@@ -652,7 +652,7 @@ function render() {
                   API Key 발급받기
                 </a>
               </div>
-              <input type="password" id="api-input" class="w-full h-14 bg-slate-50 border border-slate-300 rounded-2xl text-center focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none text-[16px] font-bold mb-6 transition-all text-slate-800" placeholder="Gemini API Key 입력">
+              <input type="password" id="api-input" class="w-full h-14 bg-slate-50 border border-slate-300 rounded-2xl text-center focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none text-[16px] font-bold mb-4 transition-all text-slate-800" placeholder="Gemini API Key 입력">
               <button onclick="Actions.validateKey()" class="w-full h-14 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-[17px] shadow-md btn-active transition-colors">시작하기</button>
             </div>
           </div>
@@ -664,7 +664,7 @@ function render() {
         <div class="min-h-screen flex flex-col p-6 bg-dark-navy text-white relative overflow-hidden home-page">
           <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-bl from-blue-600/40 to-transparent rounded-full blur-3xl transform translate-x-1/3 -translate-y-1/3 gradient-blue"></div>
           
-          <div class="flex-1 flex flex-col justify-center z-10 animate-fade-in mt-10 mb-6">
+          <div class="flex-1 flex flex-col justify-center z-10 animate-fade-in mt-10">
             <div class="inline-block px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[11px] font-extrabold tracking-widest uppercase w-fit mb-6 border border-white/20 text-blue-100 researcher-badge">
               AI Researcher
             </div>
@@ -672,7 +672,7 @@ function render() {
             <p class="text-slate-900 text-[16px] leading-relaxed font-bold">프로젝트의 방향을 결정지을<br/>가장 핵심적인 인사이트를 도출해 드립니다.</p>
           </div>
           
-          <div class="space-y-6 pb-12 z-10 button-area">
+          <div class="space-y-4 pb-12 z-10 button-area">
             <button onclick="Actions.loadFromLocal()" class="w-full h-16 bg-white/10 hover:bg-white/20 border border-white/20 rounded-2xl font-bold text-[17px] flex items-center justify-center gap-3 backdrop-blur-md transition-all btn-active text-slate-900">
               기존 프로젝트 열기
             </button>
@@ -691,7 +691,7 @@ function render() {
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900 leading-snug">어떤 사용자 경험을<br/>개선하고 싶으신가요?</h2>
             <p class="text-slate-600 font-bold text-[15px]">해결하고자 하는 문제나 타겟 시장을 구체적으로 적어주시면 더 정확한 결과를 얻을 수 있습니다.</p>
           </div>
-          <div class="relative bg-white rounded-3xl shadow-sm border border-slate-200 p-2 mb-6">
+          <div class="relative bg-white rounded-3xl shadow-sm border border-slate-200 p-2 mb-20">
             <textarea id="topic-input" class="w-full h-64 p-5 bg-transparent border-none text-[17px] outline-none placeholder:text-slate-400 font-bold leading-relaxed resize-none text-slate-800" placeholder="예: 해외 여행 계획 시 정보의 파편화로 인해 피로도를 느끼는 1인 가구 직장인">${state.researchTopic}</textarea>
           </div>
           
@@ -752,7 +752,7 @@ function render() {
             ` : ''}
           </div>
 
-          <div class="space-y-4 mb-6 px-2 manual-persona-form">
+          <div class="space-y-4 mb-10 px-2 manual-persona-form">
             <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
               <h4 class="text-[16px] font-extrabold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                  <i data-lucide="pen-tool" class="w-5 h-5"></i> 직접 타겟 추가
@@ -777,7 +777,7 @@ function render() {
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900 leading-snug">누구와 먼저<br/>대화를 나눌까요?</h2>
           </div>
           
-          <div class="px-2 mb-6">
+          <div class="px-2">
             ${state.aiCategories.map(cat => `
               <div class="mt-8 mb-4">
                 <h3 class="font-extrabold text-[18px] text-slate-800 flex items-center gap-2">
@@ -876,7 +876,7 @@ function render() {
               </div>`).join('')}
           </div>
           
-          <div class="bg-slate-200/60 p-6 mx-2 rounded-[2rem] border border-slate-300 space-y-4 mb-6 manual-question-form">
+          <div class="bg-slate-200/60 p-6 mx-2 rounded-[2rem] border border-slate-300 space-y-4 mb-10 manual-question-form">
             <h4 class="text-[16px] font-extrabold text-slate-600 uppercase tracking-wider flex items-center gap-2 manual-title">
               <i data-lucide="plus-circle" class="w-5 h-5"></i> 직접 질문 추가
             </h4>
@@ -909,7 +909,7 @@ function render() {
             <p class="text-slate-600 font-bold text-[16px]">아래 대상과 가상 인터뷰를 진행합니다.</p>
           </div>
           
-          <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-md mb-6 persona-card">
+          <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-md mb-8 persona-card">
             <div class="mb-6 border-b border-slate-200 pb-5 text-center persona-header">
               <h3 class="font-extrabold text-[22px] text-blue-900">${selectedP?.name}</h3>
             </div>
@@ -931,7 +931,7 @@ function render() {
         </div>`;
       break;
 
-    case 6: // Step 6: Interview Progress
+    case 6: { // Step 6: Interview Progress
       const curH = state.history[state.history.length-1];
       const curPersona = getAllPersonas().find(p => p.id === curH.personaId);
       
@@ -957,7 +957,7 @@ function render() {
               </div>`).join('')}
           </div>
           
-          <div class="p-6 mx-2 bg-white border border-slate-200 rounded-3xl mb-6 shadow-sm">
+          <div class="p-6 mx-2 bg-white border border-slate-200 rounded-3xl mb-12 shadow-sm">
             <h4 class="text-[16px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2 mb-4">
               <i data-lucide="message-square-plus" class="w-5 h-5"></i> 추가 질문하기
             </h4>
@@ -976,8 +976,9 @@ function render() {
           </div>
         </div>`;
       break;
+    }
 
-    case 7: // Step 7: New Interview Result Review Page (인터뷰 결과)
+    case 7: { // Step 7: New Interview Result Review Page (인터뷰 결과)
       const lastH = state.history[state.history.length-1];
       content += `
         <div class="pt-24 px-4 pb-[380px] animate-fade-in bg-slate-50 min-h-screen">
@@ -1017,7 +1018,7 @@ function render() {
             }).join('')}
           </div>
           
-          <div class="bg-blue-600 p-6 mx-2 rounded-[2rem] mb-6 shadow-md shadow-blue-600/20 text-white">
+          <div class="bg-blue-600 p-6 mx-2 rounded-[2rem] mb-12 shadow-md shadow-blue-600/20 text-white">
             <h3 class="font-black text-[16px] uppercase tracking-wider mb-5 flex items-center gap-2">
               <i data-lucide="zap" class="w-5 h-5 text-yellow-300"></i> AI Key Insights
             </h3>
@@ -1028,16 +1029,17 @@ function render() {
             <h4 class="text-[16px] font-extrabold text-slate-800 mb-3 flex items-center gap-2">
               <i data-lucide="lightbulb" class="w-5 h-5 text-amber-500"></i> 직접 발견한 인사이트 (필요시 입력)
             </h4>
-            <textarea id="user-insight-input" onchange="Actions.updateUserInsight(this.value)" class="w-full p-4 bg-slate-50 border-2 border-blue-600 rounded-2xl text-[16px] h-32 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none mb-6 text-slate-900" placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${state.userInsight}</textarea>
+            <textarea id="user-insight-input" onchange="Actions.updateUserInsight(this.value)" class="w-full p-4 bg-slate-50 border-2 border-blue-600 rounded-2xl text-[16px] h-32 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none mb-4 text-slate-900" placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${state.userInsight}</textarea>
             
-            <button onclick="Actions.generateInferences()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
+            <button onclick="document.getElementById('user-insight-input').blur(); Actions.generateInferences()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
               핵심 가치 추론하기
             </button>
           </div>
         </div>`;
       break;
+    }
 
-    case 8: // Inferences 도출
+    case 8: { // Inferences 도출
       content += `
         <div class="pt-24 px-4 pb-[200px] animate-fade-in bg-slate-50 min-h-screen">
           ${renderHeader("핵심 가치 추론", 7)}
@@ -1047,7 +1049,7 @@ function render() {
             <p class="text-blue-700 text-[16px] font-bold">사용자에게 가장 중요한 가치를 선택해 주세요.</p>
           </div>
 
-          <div class="space-y-4 mb-6 px-2">
+          <div class="space-y-4 mb-10 px-2">
             ${state.currentInferences.map((inf, i) => {
               const isSel = state.selectedInferenceId === inf.id;
               return `
@@ -1069,8 +1071,9 @@ function render() {
           </div>
         </div>`;
       break;
+    }
 
-    case 9: // Design Concepts & Perspectives
+    case 9: { // Design Concepts & Perspectives
       const perspectives = ["종합적 관점", "독창성 관점", "기술적 관점", "비즈니스 관점"];
       content += `
         <div class="pt-24 px-4 pb-[300px] animate-fade-in bg-slate-50 min-h-screen">
@@ -1081,7 +1084,7 @@ function render() {
             <p class="text-blue-700 text-[16px] font-bold">마음에 드는 컨셉 하나를 선택해 시나리오를 확인하세요.</p>
           </div>
 
-          <div class="space-y-4 mb-6 px-2">
+          <div class="space-y-4 mb-10 px-2">
             ${state.currentConcepts.map((c, i) => {
               const isSel = state.selectedConceptId === c.id;
               return `
@@ -1097,14 +1100,14 @@ function render() {
             }).join('')}
           </div>
 
-          <div class="mb-6 px-2">
+          <div class="mb-10 px-2">
             <button onclick="setState({step: 3})" class="w-full h-14 bg-white border-2 border-slate-200 text-slate-700 rounded-2xl font-bold text-[16px] flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors btn-active shadow-sm">
               <i data-lucide="users" class="w-5 h-5"></i> 다른 타겟 인터뷰하기
             </button>
           </div>
 
           <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-            <div class="grid grid-cols-2 gap-2 mb-6">
+            <div class="grid grid-cols-2 gap-2 mb-4">
               ${perspectives.map(p => {
                 const isActive = state.currentPerspective === p;
                 return `
@@ -1119,8 +1122,9 @@ function render() {
           </div>
         </div>`;
       break;
+    }
 
-    case 10: // Concept Scenario
+    case 10: { // Concept Scenario
       content += `
         <div class="pt-24 px-6 pb-40 animate-fade-in bg-slate-50 min-h-screen">
           ${renderHeader("컨셉 시나리오", 9)}
@@ -1130,7 +1134,7 @@ function render() {
             <p class="text-blue-700 text-[16px] font-bold">선택하신 컨셉이 적용된 미래의 모습을 확인하세요.</p>
           </div>
 
-          <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-md mb-6 relative">
+          <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-md mb-8 relative">
             <button onclick="copyScenarioToClipboard()" class="absolute top-6 right-6 p-2 text-slate-400 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 rounded-lg transition-colors" title="시나리오 복사하기">
               <i data-lucide="copy" class="w-5 h-5"></i>
             </button>
@@ -1139,7 +1143,7 @@ function render() {
             </div>
           </div>
 
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto space-y-6 z-[60]">
+          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto space-y-3 z-[60]">
             <button onclick="copyReportToClipboard()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[16px] shadow-lg btn-active flex items-center justify-center gap-2">
               <i data-lucide="copy" class="w-5 h-5"></i> 전체 리포트 복사하기
             </button>
@@ -1149,6 +1153,7 @@ function render() {
           </div>
         </div>`;
       break;
+    }
   }
   
   root.innerHTML = `<div class="w-full max-w-[430px] mx-auto min-h-screen shadow-[0_0_50px_rgba(0,0,0,0.05)] relative overflow-x-hidden bg-slate-50">${content}</div>`;
@@ -1156,7 +1161,7 @@ function render() {
 }
 
 // --- BOOTSTRAP ---
-window.onload = () => {
+function initApp() {
   render();
   setInterval(() => {
     if (state.step > 0 || (state.step === 1 && state.researchTopic.trim() !== "")) {
@@ -1185,4 +1190,7 @@ window.onload = () => {
       localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
     }
   }, 5000);
-};
+}
+
+// Initialize immediately to prevent blank screen issues in module scripts
+initApp();
