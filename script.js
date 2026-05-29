@@ -706,7 +706,7 @@ function render() {
 
     case 2: // Personas (Grouped by Category)
       content += `
-        <div class="pt-24 px-4 pb-36 animate-fade-in bg-slate-50 min-h-screen personas-page">
+        <div class="pt-24 px-4 pb-64 animate-fade-in bg-slate-50 min-h-screen personas-page">
           ${renderHeader("타겟 제안", 1)}
           <div class="mb-8 px-2">
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">핵심 인터뷰 타겟을 제안합니다</h2>
@@ -755,7 +755,7 @@ function render() {
             ` : ''}
           </div>
 
-          <div class="space-y-4 mb-6 px-2 manual-persona-form">
+          <div class="space-y-4 mb-10 px-2 manual-persona-form">
             <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
               <h4 class="text-[16px] font-extrabold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                  <i data-lucide="pen-tool" class="w-5 h-5"></i> 직접 타겟 추가
@@ -850,14 +850,14 @@ function render() {
     case 4: // Select Questions
       const combinedSurveys = [...state.aiSurveys, ...state.manualSurveys];
       content += `
-        <div class="pt-24 px-4 pb-36 animate-fade-in bg-slate-50 min-h-screen survey-page">
+        <div class="pt-24 px-4 pb-64 animate-fade-in bg-slate-50 min-h-screen survey-page">
           ${renderHeader("질문 설계", 3)}
           <div class="mb-8 px-2">
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">핵심 질문을<br/>골라주세요</h2>
             <p class="text-blue-700 text-[16px] font-extrabold">인터뷰의 뼈대가 될 질문들을 선택합니다.</p>
           </div>
           
-          <div class="space-y-10 mb-6 px-2 survey-list">
+          <div class="space-y-10 mb-10 px-2 survey-list">
             ${combinedSurveys.map(s => `
               <div class="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm survey-card">
                 <h3 class="font-extrabold text-[18px] text-slate-900 mb-5 flex items-center gap-2 survey-title">
@@ -879,7 +879,7 @@ function render() {
               </div>`).join('')}
           </div>
           
-          <div class="bg-slate-200/60 p-6 mx-2 rounded-[2rem] border border-slate-300 space-y-4 mb-6 manual-question-form">
+          <div class="bg-slate-200/60 p-6 mx-2 rounded-[2rem] border border-slate-300 space-y-4 mb-10 manual-question-form">
             <h4 class="text-[16px] font-extrabold text-slate-600 uppercase tracking-wider flex items-center gap-2 manual-title">
               <i data-lucide="plus-circle" class="w-5 h-5"></i> 직접 질문 추가
             </h4>
@@ -912,7 +912,7 @@ function render() {
             <p class="text-slate-600 font-bold text-[16px]">아래 대상과 가상 인터뷰를 진행합니다.</p>
           </div>
           
-          <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-md mb-6 persona-card">
+          <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-md mb-8 persona-card">
             <div class="mb-6 border-b border-slate-200 pb-5 text-center persona-header">
               <h3 class="font-extrabold text-[22px] text-blue-900">${selectedP?.name}</h3>
             </div>
@@ -980,7 +980,7 @@ function render() {
         </div>`;
       break;
 
-    case 7: // Step 7: New Interview Result Review Page
+    case 7: // Step 7: New Interview Result Review Page (인터뷰 결과)
       const lastH = state.history[state.history.length-1];
       content += `
         <div class="pt-24 px-4 pb-[380px] animate-fade-in bg-slate-50 min-h-screen">
@@ -1033,7 +1033,7 @@ function render() {
             </h4>
             <textarea id="user-insight-input" onchange="Actions.updateUserInsight(this.value)" class="w-full p-4 bg-slate-50 border-2 border-blue-600 rounded-2xl text-[16px] h-32 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none mb-4 text-slate-900" placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${state.userInsight}</textarea>
             
-            <button onclick="document.getElementById('user-insight-input').blur(); Actions.generateInferences()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
+            <button onclick="document.getElementById('user-insight-input').blur(); Actions.updateUserInsight(document.getElementById('user-insight-input').value); Actions.generateInferences()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
               핵심 가치 추론하기
             </button>
           </div>
