@@ -694,7 +694,7 @@ function render() {
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900 leading-snug">어떤 사용자 경험을<br/>개선하고 싶으신가요?</h2>
             <p class="text-slate-600 font-bold text-[15px]">해결하고자 하는 문제나 타겟 시장을 구체적으로 적어주시면 더 정확한 결과를 얻을 수 있습니다.</p>
           </div>
-          <div class="relative bg-white rounded-3xl shadow-sm border border-slate-200 p-2 mb-6">
+          <div class="relative bg-white rounded-3xl shadow-sm border border-slate-200 p-2 mb-20">
             <textarea id="topic-input" class="w-full h-64 p-5 bg-transparent border-none text-[17px] outline-none placeholder:text-slate-400 font-bold leading-relaxed resize-none text-slate-800" placeholder="예: 해외 여행 계획 시 정보의 파편화로 인해 피로도를 느끼는 1인 가구 직장인">${state.researchTopic}</textarea>
           </div>
           
@@ -706,7 +706,7 @@ function render() {
 
     case 2: // Personas (Grouped by Category)
       content += `
-        <div class="pt-24 px-4 pb-64 animate-fade-in bg-slate-50 min-h-screen personas-page">
+        <div class="pt-24 px-4 pb-36 animate-fade-in bg-slate-50 min-h-screen personas-page">
           ${renderHeader("타겟 제안", 1)}
           <div class="mb-8 px-2">
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">핵심 인터뷰 타겟을 제안합니다</h2>
@@ -780,7 +780,7 @@ function render() {
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900 leading-snug">누구와 먼저<br/>대화를 나눌까요?</h2>
           </div>
           
-          <div class="px-2 mb-6">
+          <div class="px-2">
             ${state.aiCategories.map(cat => `
               <div class="mt-8 mb-4">
                 <h3 class="font-extrabold text-[18px] text-slate-800 flex items-center gap-2">
@@ -980,7 +980,7 @@ function render() {
         </div>`;
       break;
 
-    case 7: // Step 7: New Interview Result Review Page (인터뷰 결과)
+    case 7: // Step 7: New Interview Result Review Page
       const lastH = state.history[state.history.length-1];
       content += `
         <div class="pt-24 px-4 pb-[380px] animate-fade-in bg-slate-50 min-h-screen">
@@ -1031,9 +1031,9 @@ function render() {
             <h4 class="text-[16px] font-extrabold text-slate-800 mb-3 flex items-center gap-2">
               <i data-lucide="lightbulb" class="w-5 h-5 text-amber-500"></i> 직접 발견한 인사이트 (필요시 입력)
             </h4>
-            <textarea id="user-insight-input" onchange="Actions.updateUserInsight(this.value)" class="w-full p-4 bg-slate-50 border-2 border-blue-600 rounded-2xl text-[16px] h-32 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none mb-6 text-slate-900" placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${state.userInsight}</textarea>
+            <textarea id="user-insight-input" onchange="Actions.updateUserInsight(this.value)" class="w-full p-4 bg-slate-50 border-2 border-blue-600 rounded-2xl text-[16px] h-32 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none mb-4 text-slate-900" placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${state.userInsight}</textarea>
             
-            <button onclick="Actions.generateInferences()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
+            <button onclick="document.getElementById('user-insight-input').blur(); Actions.generateInferences()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
               핵심 가치 추론하기
             </button>
           </div>
@@ -1042,7 +1042,7 @@ function render() {
 
     case 8: // Inferences 도출
       content += `
-        <div class="pt-24 px-4 pb-[300px] animate-fade-in bg-slate-50 min-h-screen">
+        <div class="pt-24 px-4 pb-[200px] animate-fade-in bg-slate-50 min-h-screen">
           ${renderHeader("핵심 가치 추론", 7)}
           
           <div class="mb-8 px-2">
@@ -1084,7 +1084,7 @@ function render() {
             <p class="text-blue-700 text-[16px] font-bold">마음에 드는 컨셉 하나를 선택해 시나리오를 확인하세요.</p>
           </div>
 
-          <div class="space-y-4 mb-6 px-2">
+          <div class="space-y-4 mb-10 px-2">
             ${state.currentConcepts.map((c, i) => {
               const isSel = state.selectedConceptId === c.id;
               return `
@@ -1100,14 +1100,14 @@ function render() {
             }).join('')}
           </div>
 
-          <div class="mb-6 px-2">
+          <div class="mb-10 px-2">
             <button onclick="setState({step: 3})" class="w-full h-14 bg-white border-2 border-slate-200 text-slate-700 rounded-2xl font-bold text-[16px] flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors btn-active shadow-sm">
               <i data-lucide="users" class="w-5 h-5"></i> 다른 타겟 인터뷰하기
             </button>
           </div>
 
           <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-            <div class="grid grid-cols-2 gap-2 mb-6">
+            <div class="grid grid-cols-2 gap-2 mb-4">
               ${perspectives.map(p => {
                 const isActive = state.currentPerspective === p;
                 return `
@@ -1133,7 +1133,7 @@ function render() {
             <p class="text-blue-700 text-[16px] font-bold">선택하신 컨셉이 적용된 미래의 모습을 확인하세요.</p>
           </div>
 
-          <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-md mb-6 relative">
+          <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-md mb-8 relative">
             <button onclick="copyScenarioToClipboard()" class="absolute top-6 right-6 p-2 text-slate-400 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 rounded-lg transition-colors" title="시나리오 복사하기">
               <i data-lucide="copy" class="w-5 h-5"></i>
             </button>
@@ -1142,7 +1142,7 @@ function render() {
             </div>
           </div>
 
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto space-y-6 z-[60]">
+          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto space-y-3 z-[60]">
             <button onclick="copyReportToClipboard()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[16px] shadow-lg btn-active flex items-center justify-center gap-2">
               <i data-lucide="copy" class="w-5 h-5"></i> 전체 리포트 복사하기
             </button>
