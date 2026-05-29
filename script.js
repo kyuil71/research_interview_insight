@@ -706,7 +706,7 @@ function render() {
 
     case 2: // Personas (Grouped by Category)
       content += `
-        <div class="pt-24 px-4 pb-64 animate-fade-in bg-slate-50 min-h-screen personas-page">
+        <div class="pt-24 px-4 pb-36 animate-fade-in bg-slate-50 min-h-screen personas-page">
           ${renderHeader("타겟 제안", 1)}
           <div class="mb-8 px-2">
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">핵심 인터뷰 타겟을 제안합니다</h2>
@@ -755,7 +755,7 @@ function render() {
             ` : ''}
           </div>
 
-          <div class="space-y-4 mb-10 px-2 manual-persona-form">
+          <div class="space-y-4 mb-6 px-2 manual-persona-form">
             <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
               <h4 class="text-[16px] font-extrabold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                  <i data-lucide="pen-tool" class="w-5 h-5"></i> 직접 타겟 추가
@@ -780,7 +780,7 @@ function render() {
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900 leading-snug">누구와 먼저<br/>대화를 나눌까요?</h2>
           </div>
           
-          <div class="px-2">
+          <div class="px-2 mb-6">
             ${state.aiCategories.map(cat => `
               <div class="mt-8 mb-4">
                 <h3 class="font-extrabold text-[18px] text-slate-800 flex items-center gap-2">
@@ -850,14 +850,14 @@ function render() {
     case 4: // Select Questions
       const combinedSurveys = [...state.aiSurveys, ...state.manualSurveys];
       content += `
-        <div class="pt-24 px-4 pb-64 animate-fade-in bg-slate-50 min-h-screen survey-page">
+        <div class="pt-24 px-4 pb-36 animate-fade-in bg-slate-50 min-h-screen survey-page">
           ${renderHeader("질문 설계", 3)}
           <div class="mb-8 px-2">
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">핵심 질문을<br/>골라주세요</h2>
             <p class="text-blue-700 text-[16px] font-extrabold">인터뷰의 뼈대가 될 질문들을 선택합니다.</p>
           </div>
           
-          <div class="space-y-10 mb-10 px-2 survey-list">
+          <div class="space-y-10 mb-6 px-2 survey-list">
             ${combinedSurveys.map(s => `
               <div class="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm survey-card">
                 <h3 class="font-extrabold text-[18px] text-slate-900 mb-5 flex items-center gap-2 survey-title">
@@ -879,7 +879,7 @@ function render() {
               </div>`).join('')}
           </div>
           
-          <div class="bg-slate-200/60 p-6 mx-2 rounded-[2rem] border border-slate-300 space-y-4 mb-10 manual-question-form">
+          <div class="bg-slate-200/60 p-6 mx-2 rounded-[2rem] border border-slate-300 space-y-4 mb-6 manual-question-form">
             <h4 class="text-[16px] font-extrabold text-slate-600 uppercase tracking-wider flex items-center gap-2 manual-title">
               <i data-lucide="plus-circle" class="w-5 h-5"></i> 직접 질문 추가
             </h4>
@@ -912,7 +912,7 @@ function render() {
             <p class="text-slate-600 font-bold text-[16px]">아래 대상과 가상 인터뷰를 진행합니다.</p>
           </div>
           
-          <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-md mb-8 persona-card">
+          <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-md mb-6 persona-card">
             <div class="mb-6 border-b border-slate-200 pb-5 text-center persona-header">
               <h3 class="font-extrabold text-[22px] text-blue-900">${selectedP?.name}</h3>
             </div>
@@ -1040,9 +1040,10 @@ function render() {
         </div>`;
       break;
 
-    case 8: // Inferences 도출
+    case 8: { // Inferences 도출 (관점 버튼 완벽 추가)
+      const inferencePerspectives = ["종합적 관점", "독창성 관점", "기술적 관점", "비즈니스 관점"];
       content += `
-        <div class="pt-24 px-4 pb-[200px] animate-fade-in bg-slate-50 min-h-screen">
+        <div class="pt-24 px-4 pb-[300px] animate-fade-in bg-slate-50 min-h-screen">
           ${renderHeader("핵심 가치 추론", 7)}
           
           <div class="mb-8 px-2">
@@ -1066,12 +1067,22 @@ function render() {
           </div>
 
           <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+            <div class="grid grid-cols-2 gap-2 mb-4">
+              ${inferencePerspectives.map(p => {
+                const isActive = state.currentPerspective === p;
+                return `
+                <button onclick="Actions.generateInferences('${p}')" class="py-3 rounded-xl font-bold text-[14px] border transition-all ${isActive ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}">
+                  ${p}
+                </button>`
+              }).join('')}
+            </div>
             <button onclick="Actions.generateConcepts()" ${!state.selectedInferenceId ? 'disabled' : ''} class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg disabled:opacity-50 btn-active">
               선택한 추론으로 디자인 컨셉 도출
             </button>
           </div>
         </div>`;
       break;
+    }
 
     case 9: // Design Concepts & Perspectives
       const perspectives = ["종합적 관점", "독창성 관점", "기술적 관점", "비즈니스 관점"];
