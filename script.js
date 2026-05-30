@@ -296,23 +296,41 @@ const Actions = {
     const selectedTexts = allQ.filter(q => state.selectedQuestionIds.includes(q.id)).map(q => q.text);
     if (selectedTexts.length === 0) { showToast("질문을 선택해 주세요."); return; }
     const res = await callGemini(PROMPTS.GENERATE_INTERVIEW(state.researchTopic, persona, selectedTexts), "Start interview.");
-    if (res) setState({ 
-      history: [...state.history, { personaId: persona.id, result: res }], 
-      step: 6,
-      selectedQaIndices: [],
-      userInsight: ""
-    });
+    if (res) {
+      // 새로운 인터뷰 대상과의 대화 세션을 생성하여 고유의 세션 객체로 history에 추가 (누적 데이터 보존)
+      const sessionObj = {
+        sessionId: 'sess_' + Date.now(),
+        personaId: persona.id,
+        result: res,
+        selectedQaIndices: [],
+        userInsight: "",
+        inferences: [],
+        inferencePerspective: "종합적 관점",
+        selectedInferenceId: null,
+        concepts: [],
+        perspective: "종합적 관점",
+        selectedConceptId: null,
+        scenario: ""
+      };
+      setState({ 
+        history: [...state.history, sessionObj], 
+        step: 6,
+        selectedQaIndices: [],
+        userInsight: ""
+      });
+    }
   },
   
   async askFollowUp() {
     const input = document.getElementById('followup-input');
     const question = input?.value.trim(); if (!question) return;
-    const curH = state.history[state.history.length - 1];
-    const persona = getAllPersonas().find(p => p.id === curH.personaId);
+    const newH = [...state.history]; 
+    if (newH.length === 0) return;
+    const currentSession = newH[newH.length - 1];
+    const persona = getAllPersonas().find(p => p.id === currentSession.personaId);
     const res = await callGemini(PROMPTS.GENERATE_FOLLOW_UP(state.researchTopic, persona, question), "Ask follow-up.");
     if (res) { 
-      const newH = [...state.history]; 
-      newH[newH.length-1].result.qaPairs.push(res); 
+      currentSession.result.qaPairs.push(res); 
       setState({ history: newH }); 
       input.value = ""; 
     }
@@ -321,19 +339,33 @@ const Actions = {
   toggleQaSelection(index) {
     let newList = [...state.selectedQaIndices];
     newList = newList.includes(index) ? newList.filter(x => x !== index) : [...newList, index];
-    setState({ selectedQaIndices: newList });
+    
+    // 현재 활성화된 세션 히스토리에도 실시간 다중 선택된 인덱스 반영
+    const newH = [...state.history];
+    if (newH.length > 0) {
+      newH[newH.length - 1].selectedQaIndices = newList;
+    }
+    
+    setState({ selectedQaIndices: newList, history: newH });
   },
 
   updateUserInsight(text) {
-    state.userInsight = text; 
+    state.userInsight = text;
+    const newH = [...state.history];
+    if (newH.length > 0) {
+      newH[newH.length - 1].userInsight = text;
+    }
+    state.history = newH;
   },
 
   async generateInferences(perspective = "종합적 관점") {
-    const curH = state.history[state.history.length - 1];
-    const persona = getAllPersonas().find(p => p.id === curH.personaId);
+    if (state.history.length === 0) return;
+    const newH = [...state.history];
+    const currentSession = newH[newH.length - 1];
+    const persona = getAllPersonas().find(p => p.id === currentSession.personaId);
     
-    let selectedQAs = curH.result.qaPairs.filter((_, i) => state.selectedQaIndices.includes(i));
-    if(selectedQAs.length === 0) selectedQAs = curH.result.qaPairs;
+    let selectedQAs = currentSession.result.qaPairs.filter((_, i) => state.selectedQaIndices.includes(i));
+    if(selectedQAs.length === 0) selectedQAs = currentSession.result.qaPairs;
     const qaText = selectedQAs.map(qa => `Q: ${qa.q}\nA: ${qa.a}`).join('\n\n');
 
     const insightInput = document.getElementById('user-insight-input');
@@ -348,26 +380,29 @@ const Actions = {
     if (res && res.inferences) {
       const inferencesWithId = res.inferences.map((inf, i) => ({ ...inf, id: `inf-${Date.now()}-${i}` }));
       
-      const historyCopy = [...state.history];
-      historyCopy[historyCopy.length - 1].inferencePerspective = perspective;
-      historyCopy[historyCopy.length - 1].inferences = inferencesWithId;
+      currentSession.inferencePerspective = perspective;
+      currentSession.inferences = inferencesWithId;
+      currentSession.selectedInferenceId = null; // 초기화
+      currentSession.userInsight = userInsightVal;
       
       setState({ 
         currentInferences: inferencesWithId, 
         step: 8, 
         selectedInferenceId: null, 
         userInsight: userInsightVal,
-        history: historyCopy
+        history: newH
       });
     }
   },
 
   async generateConcepts(perspective = "종합적 관점") {
-    const curH = state.history[state.history.length - 1];
-    const persona = getAllPersonas().find(p => p.id === curH.personaId);
+    if (state.history.length === 0) return;
+    const newH = [...state.history];
+    const currentSession = newH[newH.length - 1];
+    const persona = getAllPersonas().find(p => p.id === currentSession.personaId);
     
-    let selectedQAs = curH.result.qaPairs.filter((_, i) => state.selectedQaIndices.includes(i));
-    if(selectedQAs.length === 0) selectedQAs = curH.result.qaPairs;
+    let selectedQAs = currentSession.result.qaPairs.filter((_, i) => state.selectedQaIndices.includes(i));
+    if(selectedQAs.length === 0) selectedQAs = currentSession.result.qaPairs;
     const qaText = selectedQAs.map(qa => `Q: ${qa.q}\nA: ${qa.a}`).join('\n\n');
 
     const inference = state.currentInferences.find(i => i.id === state.selectedInferenceId);
@@ -382,22 +417,33 @@ const Actions = {
     if (res && res.concepts) {
       const conceptsWithId = res.concepts.map((c, i) => ({ ...c, id: `c-${Date.now()}-${i}` }));
       
-      const historyCopy = [...state.history];
-      historyCopy[historyCopy.length - 1].perspective = perspective;
-      historyCopy[historyCopy.length - 1].concepts = conceptsWithId;
+      // 뒤로 돌아갔다가 b라는 추론을 가설로 선택했을 때, 세션을 완전히 덮어쓰지 않고 새로운 분기로 남거나 누적되도록 분기 처리
+      // 만약 이미 동일한 세션에서 다른 추론 ID 기반 컨셉이 뽑힌 이력이 있다면, 과거 결과가 리포트에 모두 나오도록 보존
+      if (currentSession.selectedInferenceId && currentSession.selectedInferenceId !== state.selectedInferenceId) {
+        // 기존 세션의 분석 완료 상태를 백업용 가상 히스토리 객체로 복사 및 보존
+        const backupSession = JSON.parse(JSON.stringify(currentSession));
+        newH.insertBefore ? newH.splice(newH.length - 1, 0, backupSession) : newH.push(backupSession);
+      }
+
+      currentSession.selectedInferenceId = state.selectedInferenceId;
+      currentSession.perspective = perspective;
+      currentSession.concepts = conceptsWithId;
+      currentSession.selectedConceptId = null;
 
       setState({ 
         currentConcepts: conceptsWithId, 
         step: 9, 
         selectedConceptId: null,
-        history: historyCopy
+        history: newH
       });
     }
   },
 
   async generateScenario() {
-    const curH = state.history[state.history.length - 1];
-    const persona = getAllPersonas().find(p => p.id === curH.personaId);
+    if (state.history.length === 0) return;
+    const newH = [...state.history];
+    const currentSession = newH[newH.length - 1];
+    const persona = getAllPersonas().find(p => p.id === currentSession.personaId);
     const concept = state.currentConcepts.find(c => c.id === state.selectedConceptId);
     
     if(!concept) { showToast("컨셉을 선택해 주세요."); return; }
@@ -407,14 +453,15 @@ const Actions = {
       "Generate Scenario"
     );
     if (res && res.scenario) {
-      const historyCopy = [...state.history];
-      historyCopy[historyCopy.length - 1].selectedConcept = concept;
-      historyCopy[historyCopy.length - 1].scenario = res.scenario;
+      currentSession.selectedConceptId = state.selectedConceptId;
+      // 리포트 출력 구조를 위해 매칭 객체 주입
+      currentSession.selectedConcept = concept;
+      currentSession.scenario = res.scenario;
 
       setState({ 
         currentScenario: res.scenario, 
         step: 10,
-        history: historyCopy
+        history: newH
       });
     }
   }
@@ -516,45 +563,59 @@ function showProjectSelectionModal(projects, keys) {
 
 // --- CLIPBOARD UTILITIES ---
 function copyReportToClipboard() {
-  let txt = "==================================================\n   RESEARCH LAB. 분석 종합 리포트\n==================================================\n\n";
+  let txt = "==================================================\n   RESEARCH LAB. 분석 종합 리포트 (누적 보존 모드)\n==================================================\n\n";
   txt += `[리서치 주제]\n- ${state.researchTopic || "설정된 주제 없음"}\n\n`;
   
   if (state.history.length > 0) {
+    // 거쳐간 모든 리서치 여정(여럿의 대상, 여러 번의 가치 추론 및 가설 컨셉 전체)을 타임라인 히스토리 순으로 중복 없이 가공하여 누적 출력
     state.history.forEach((h, idx) => {
       const persona = getAllPersonas().find(p => p.id === h.personaId);
       txt += `==================================================\n`;
-      txt += ` 타겟 #${idx+1} : ${persona?.name}\n`;
+      txt += ` 분석 이력 세션 #${idx+1} : [타겟] ${persona?.name || "미지정"}\n`;
       txt += `==================================================\n`;
       
-      txt += `[인터뷰 요약]\n${h.result.summary}\n\n`;
+      if (h.result && h.result.summary) {
+        txt += `[인터뷰 요약]\n${h.result.summary}\n\n`;
+      }
       
-      txt += `[대화 내용 (Q&A)]\n`;
-      h.result.qaPairs.forEach((qa, qidx) => { 
-        txt += `Q${qidx+1}: ${qa.q}\nA: ${qa.a}\n\n`; 
-      });
+      if (h.result && h.result.qaPairs && h.result.qaPairs.length > 0) {
+        txt += `[대화 내용 (Q&A)]\n`;
+        h.result.qaPairs.forEach((qa, qidx) => { 
+          txt += `Q${qidx+1}: ${qa.q}\nA: ${qa.a}\n\n`; 
+        });
+      }
       
-      txt += `[AI Key Insights]\n${h.result.keyInsights}\n\n`;
+      if (h.result && h.result.keyInsights) {
+        txt += `[AI Key Insights]\n${h.result.keyInsights}\n\n`;
+      }
+
+      if (h.userInsight) {
+        txt += `[사용자 발견 인사이트]\n${h.userInsight}\n\n`;
+      }
 
       if (h.inferences && h.inferences.length > 0) {
         txt += `[도출된 핵심 가치 추론 (${h.inferencePerspective || "종합적 관점"})]\n`;
         h.inferences.forEach((inf, i) => {
-          txt += `${i+1}. ${inf.title}\n   ${inf.description}\n\n`;
+          const checkMark = (h.selectedInferenceId === inf.id) ? " ★(선택됨)" : "";
+          txt += `${i+1}. ${inf.title}${checkMark}\n   ${inf.description}\n\n`;
         });
       }
 
       if (h.concepts && h.concepts.length > 0) {
         txt += `[도출된 디자인 컨셉 (${h.perspective || "종합적 관점"})]\n`;
         h.concepts.forEach((c, i) => {
-          txt += `${i+1}. ${c.title}\n   핵심 가치: ${c.coreValue}\n   ${c.description}\n\n`;
+          const checkMark = (h.selectedConceptId === c.id) ? " ★(최종 가설 채택)" : "";
+          txt += `${i+1}. ${c.title}${checkMark}\n   핵심 가치: ${c.coreValue}\n   ${c.description}\n\n`;
         });
       }
 
       if (h.scenario) {
-        txt += `[컨셉 시나리오 (${h.selectedConcept?.title})]\n${h.scenario}\n\n\n`;
+        txt += `[컨셉 시나리오 (${h.selectedConcept?.title || "채택된 가설"})]\n${h.scenario}\n\n`;
       }
+      txt += `\n`;
     });
   } else {
-    txt += "저장된 인터뷰 기록이 없습니다.\n";
+    txt += "저장된 리서치 분석 기록이 존재하지 않습니다.\n";
   }
   
   const textArea = document.createElement("textarea");
@@ -563,7 +624,7 @@ function copyReportToClipboard() {
   textArea.select();
   try {
     document.execCommand('copy');
-    showToast("종합 리포트가 복사되었습니다.");
+    showToast("모든 여정이 포함된 분석 종합 리포트가 복사되었습니다.");
   } catch (err) {
     showToast("복사 실패.");
   }
@@ -872,7 +933,7 @@ function render() {
                         <div class="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${isSel ? 'border-blue-600 bg-blue-600' : 'border-slate-300 bg-white'} text-white check-icon">
                           ${isSel ? `<i data-lucide="check" class="w-3.5 h-3.5"></i>` : ""}
                         </div>
-                        <p class="text-[16px] ${isSel ? 'text-blue-900 font-extrabold' : 'text-slate-700 font-bold'} flex-1 leading-snug question-text">${q}</p>
+                        <p class="text-[16px] ${isSel ? 'text-blue-900 font-extrabold' : 'text-slate-700 font-bold'} flex-1 inline-snug question-text">${q}</p>
                       </div>`;
                   }).join('')}
                 </div>
@@ -935,8 +996,8 @@ function render() {
       break;
 
     case 6: // Step 6: Interview Progress
-      const curH = state.history[state.history.length-1];
-      const curPersona = getAllPersonas().find(p => p.id === curH.personaId);
+      const currentH = state.history[state.history.length-1];
+      const curPersona = getAllPersonas().find(p => p.id === currentH.personaId);
       
       content += `
         <div class="pt-24 px-4 pb-[150px] animate-fade-in bg-slate-50 min-h-screen">
@@ -948,7 +1009,7 @@ function render() {
           </div>
 
           <div class="space-y-6 mb-12 px-2">
-            ${curH.result.qaPairs.map((qa, i) => `
+            ${currentH.result.qaPairs.map((qa, i) => `
               <div class="p-6 rounded-[2rem] border-2 border-slate-200 bg-white shadow-sm">
                 <div class="flex gap-3 mb-4 pr-8">
                   <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold flex items-center justify-center shrink-0 text-sm">Q${i+1}</div>
@@ -1028,177 +1089,4 @@ function render() {
           </div>
           
           <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-            <h4 class="text-[16px] font-extrabold text-slate-800 mb-3 flex items-center gap-2">
-              <i data-lucide="lightbulb" class="w-5 h-5 text-amber-500"></i> 직접 발견한 인사이트 (필요시 입력)
-            </h4>
-            <textarea id="user-insight-input" onchange="Actions.updateUserInsight(this.value)" class="w-full p-4 bg-slate-50 border-2 border-blue-600 rounded-2xl text-[16px] h-32 outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-slate-500 font-bold resize-none mb-4 text-slate-900" placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${state.userInsight}</textarea>
-            
-            <button onclick="document.getElementById('user-insight-input').blur(); Actions.updateUserInsight(document.getElementById('user-insight-input').value); Actions.generateInferences()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
-              핵심 가치 추론하기
-            </button>
-          </div>
-        </div>`;
-      break;
-
-    case 8: { // Inferences 도출 (관점 버튼 완벽 추가)
-      const inferencePerspectives = ["종합적 관점", "독창성 관점", "기술적 관점", "비즈니스 관점"];
-      content += `
-        <div class="pt-24 px-4 pb-[300px] animate-fade-in bg-slate-50 min-h-screen">
-          ${renderHeader("핵심 가치 추론", 7)}
-          
-          <div class="mb-8 px-2">
-            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">인터뷰 기반<br/>핵심 가치 추론</h2>
-            <p class="text-blue-700 text-[16px] font-bold">사용자에게 가장 중요한 가치를 선택해 주세요.</p>
-          </div>
-
-          <div class="space-y-4 mb-10 px-2">
-            ${state.currentInferences.map((inf, i) => {
-              const isSel = state.selectedInferenceId === inf.id;
-              return `
-              <div onclick="setState({selectedInferenceId: '${inf.id}'})" class="p-6 rounded-[2rem] border-2 transition-all cursor-pointer bg-white relative ${isSel ? 'border-blue-600 shadow-md ring-2 ring-blue-600/20' : 'border-slate-200 shadow-sm'}">
-                <div class="absolute top-6 right-6 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSel ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-transparent'}">
-                  <i data-lucide="check" class="w-3.5 h-3.5"></i>
-                </div>
-                <div class="inline-block px-3 py-1 bg-blue-50 text-blue-700 rounded-md text-[11px] font-extrabold tracking-widest uppercase mb-3 border border-blue-100">Inference ${i+1}</div>
-                <h3 class="font-extrabold text-[18px] text-slate-900 mb-3 pr-8 leading-snug">${inf.title}</h3>
-                <p class="text-slate-700 font-bold text-[16px] leading-relaxed whitespace-pre-line">${inf.description}</p>
-              </div>`
-            }).join('')}
-          </div>
-
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-            <div class="grid grid-cols-2 gap-2 mb-4">
-              ${inferencePerspectives.map(p => {
-                const isActive = state.currentPerspective === p;
-                return `
-                <button onclick="Actions.generateInferences('${p}')" class="py-3 rounded-xl font-bold text-[14px] border transition-all ${isActive ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}">
-                  ${p}
-                </button>`
-              }).join('')}
-            </div>
-            <button onclick="Actions.generateConcepts()" ${!state.selectedInferenceId ? 'disabled' : ''} class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg disabled:opacity-50 btn-active">
-              선택한 추론으로 디자인 컨셉 도출
-            </button>
-          </div>
-        </div>`;
-      break;
-    }
-
-    case 9: // Design Concepts & Perspectives
-      const perspectives = ["종합적 관점", "독창성 관점", "기술적 관점", "비즈니스 관점"];
-      content += `
-        <div class="pt-24 px-4 pb-[300px] animate-fade-in bg-slate-50 min-h-screen">
-          ${renderHeader("컨셉 도출", 8)}
-          
-          <div class="mb-8 px-2">
-            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">핵심 추론 기반<br/>디자인 컨셉</h2>
-            <p class="text-blue-700 text-[16px] font-bold">마음에 드는 컨셉 하나를 선택해 시나리오를 확인하세요.</p>
-          </div>
-
-          <div class="space-y-4 mb-10 px-2">
-            ${state.currentConcepts.map((c, i) => {
-              const isSel = state.selectedConceptId === c.id;
-              return `
-              <div onclick="setState({selectedConceptId: '${c.id}'})" class="p-6 rounded-[2rem] border-2 transition-all cursor-pointer bg-white relative ${isSel ? 'border-blue-600 shadow-md ring-2 ring-blue-600/20' : 'border-slate-200 shadow-sm'}">
-                <div class="absolute top-6 right-6 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSel ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-transparent'}">
-                  <i data-lucide="check" class="w-3.5 h-3.5"></i>
-                </div>
-                <div class="inline-block px-3 py-1 bg-blue-50 text-blue-700 rounded-md text-[11px] font-extrabold tracking-widest uppercase mb-3 border border-blue-100">Concept ${i+1}</div>
-                <h3 class="font-extrabold text-[18px] text-slate-900 mb-2 pr-8 leading-snug">${c.title}</h3>
-                <p class="font-extrabold text-blue-700 block mb-3 text-[14px]">핵심 가치: ${c.coreValue}</p>
-                <p class="text-slate-700 font-bold text-[16px] leading-relaxed whitespace-pre-line">${c.description}</p>
-              </div>`
-            }).join('')}
-          </div>
-
-          <div class="mb-10 px-2">
-            <button onclick="setState({step: 3})" class="w-full h-14 bg-white border-2 border-slate-200 text-slate-700 rounded-2xl font-bold text-[16px] flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors btn-active shadow-sm">
-              <i data-lucide="users" class="w-5 h-5"></i> 다른 타겟 인터뷰하기
-            </button>
-          </div>
-
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-            <div class="grid grid-cols-2 gap-2 mb-4">
-              ${perspectives.map(p => {
-                const isActive = state.currentPerspective === p;
-                return `
-                <button onclick="Actions.generateConcepts('${p}')" class="py-3 rounded-xl font-bold text-[14px] border transition-all ${isActive ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}">
-                  ${p}
-                </button>`
-              }).join('')}
-            </div>
-            <button onclick="Actions.generateScenario()" ${!state.selectedConceptId ? 'disabled' : ''} class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg disabled:opacity-50 btn-active">
-              컨셉 시나리오 보기
-            </button>
-          </div>
-        </div>`;
-      break;
-
-    case 10: // Concept Scenario
-      content += `
-        <div class="pt-24 px-6 pb-40 animate-fade-in bg-slate-50 min-h-screen">
-          ${renderHeader("컨셉 시나리오", 9)}
-          
-          <div class="mb-8">
-            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900 leading-snug">사용자 경험<br/>시나리오</h2>
-            <p class="text-blue-700 text-[16px] font-bold">선택하신 컨셉이 적용된 미래의 모습을 확인하세요.</p>
-          </div>
-
-          <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-md mb-8 relative">
-            <button onclick="copyScenarioToClipboard()" class="absolute top-6 right-6 p-2 text-slate-400 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 rounded-lg transition-colors" title="시나리오 복사하기">
-              <i data-lucide="copy" class="w-5 h-5"></i>
-            </button>
-            <div class="text-slate-900 font-bold text-[16px] leading-loose whitespace-pre-line mt-4">
-              ${state.currentScenario}
-            </div>
-          </div>
-
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto space-y-3 z-[60]">
-            <button onclick="copyReportToClipboard()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[16px] shadow-lg btn-active flex items-center justify-center gap-2">
-              <i data-lucide="copy" class="w-5 h-5"></i> 전체 리포트 복사하기
-            </button>
-            <button onclick="setState({step: 0})" class="w-full h-14 bg-white border border-slate-200 text-slate-700 rounded-2xl font-bold text-[16px] flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors btn-active shadow-sm">
-              <i data-lucide="home" class="w-5 h-5"></i> 처음으로 돌아가기
-            </button>
-          </div>
-        </div>`;
-      break;
-  }
-  
-  root.innerHTML = `<div class="w-full max-w-[430px] mx-auto min-h-screen shadow-[0_0_50px_rgba(0,0,0,0.05)] relative overflow-x-hidden bg-slate-50">${content}</div>`;
-  lucide.createIcons();
-}
-
-// --- BOOTSTRAP ---
-function initApp() {
-  render();
-  setInterval(() => {
-    if (state.step > 0 || (state.step === 1 && state.researchTopic.trim() !== "")) {
-      const { apiKey, isAnalyzing, errorMsg, ...dataToSave } = state;
-      
-      let projects = {};
-      try {
-        projects = JSON.parse(localStorage.getItem(PROJECTS_STORAGE_KEY)) || {};
-      } catch(e) {}
-
-      if (!currentProjectId) {
-        currentProjectId = 'proj_' + Date.now();
-      }
-
-      let title = state.researchTopic.trim();
-      if (!title) title = "새 프로젝트 " + new Date().toLocaleTimeString();
-      else if (title.length > 20) title = title.substring(0, 20) + "...";
-
-      projects[currentProjectId] = {
-        id: currentProjectId,
-        title: title,
-        updatedAt: Date.now(),
-        data: dataToSave
-      };
-
-      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
-    }
-  }, 5000);
-}
-
-initApp();
+            <h4 class="text-[16px] font-extrabold text-slate
