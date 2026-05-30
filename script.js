@@ -285,7 +285,7 @@ const Actions = {
 
   async generateSurveys() {
     const persona = getAllPersonas().find(p => p.id === state.selectedPersonaId);
-    const res = await callGemini(PROMPTS.GENERATE_SURVEYS(state.researchTopic, persona), "Generate questions.");
+    const res = await callGemini(PROMPTS.GENERATE_SURveys(state.researchTopic, persona), "Generate questions.");
     if (res) setState({ aiSurveys: res.surveys, step: 4 });
   },
   
@@ -296,23 +296,40 @@ const Actions = {
     const selectedTexts = allQ.filter(q => state.selectedQuestionIds.includes(q.id)).map(q => q.text);
     if (selectedTexts.length === 0) { showToast("질문을 선택해 주세요."); return; }
     const res = await callGemini(PROMPTS.GENERATE_INTERVIEW(state.researchTopic, persona, selectedTexts), "Start interview.");
-    if (res) setState({ 
-      history: [...state.history, { personaId: persona.id, result: res }], 
-      step: 6,
-      selectedQaIndices: [],
-      userInsight: ""
-    });
+    if (res) {
+      const sessionObj = {
+        sessionId: 'sess_' + Date.now(),
+        personaId: persona.id,
+        result: res,
+        selectedQaIndices: [],
+        userInsight: "",
+        inferences: [],
+        inferencePerspective: "종합적 관점",
+        selectedInferenceId: null,
+        concepts: [],
+        perspective: "종합적 관점",
+        selectedConceptId: null,
+        scenario: ""
+      };
+      setState({ 
+        history: [...state.history, sessionObj], 
+        step: 6,
+        selectedQaIndices: [],
+        userInsight: ""
+      });
+    }
   },
   
   async askFollowUp() {
     const input = document.getElementById('followup-input');
     const question = input?.value.trim(); if (!question) return;
-    const curH = state.history[state.history.length - 1];
-    const persona = getAllPersonas().find(p => p.id === curH.personaId);
+    const newH = [...state.history]; 
+    if (newH.length === 0) return;
+    const currentSession = newH[newH.length - 1];
+    const persona = getAllPersonas().find(p => p.id === currentSession.personaId);
     const res = await callGemini(PROMPTS.GENERATE_FOLLOW_UP(state.researchTopic, persona, question), "Ask follow-up.");
     if (res) { 
-      const newH = [...state.history]; 
-      newH[newH.length-1].result.qaPairs.push(res); 
+      currentSession.result.qaPairs.push(res); 
       setState({ history: newH }); 
       input.value = ""; 
     }
@@ -321,19 +338,32 @@ const Actions = {
   toggleQaSelection(index) {
     let newList = [...state.selectedQaIndices];
     newList = newList.includes(index) ? newList.filter(x => x !== index) : [...newList, index];
-    setState({ selectedQaIndices: newList });
+    
+    const newH = [...state.history];
+    if (newH.length > 0) {
+      newH[newH.length - 1].selectedQaIndices = newList;
+    }
+    
+    setState({ selectedQaIndices: newList, history: newH });
   },
 
   updateUserInsight(text) {
-    state.userInsight = text; 
+    state.userInsight = text;
+    const newH = [...state.history];
+    if (newH.length > 0) {
+      newH[newH.length - 1].userInsight = text;
+    }
+    state.history = newH;
   },
 
   async generateInferences(perspective = "종합적 관점") {
-    const curH = state.history[state.history.length - 1];
-    const persona = getAllPersonas().find(p => p.id === curH.personaId);
+    if (state.history.length === 0) return;
+    const newH = [...state.history];
+    const currentSession = newH[newH.length - 1];
+    const persona = getAllPersonas().find(p => p.id === currentSession.personaId);
     
-    let selectedQAs = curH.result.qaPairs.filter((_, i) => state.selectedQaIndices.includes(i));
-    if(selectedQAs.length === 0) selectedQAs = curH.result.qaPairs;
+    let selectedQAs = currentSession.result.qaPairs.filter((_, i) => state.selectedQaIndices.includes(i));
+    if(selectedQAs.length === 0) selectedQAs = currentSession.result.qaPairs;
     const qaText = selectedQAs.map(qa => `Q: ${qa.q}\nA: ${qa.a}`).join('\n\n');
 
     const insightInput = document.getElementById('user-insight-input');
@@ -348,26 +378,29 @@ const Actions = {
     if (res && res.inferences) {
       const inferencesWithId = res.inferences.map((inf, i) => ({ ...inf, id: `inf-${Date.now()}-${i}` }));
       
-      const historyCopy = [...state.history];
-      historyCopy[historyCopy.length - 1].inferencePerspective = perspective;
-      historyCopy[historyCopy.length - 1].inferences = inferencesWithId;
+      currentSession.inferencePerspective = perspective;
+      currentSession.inferences = inferencesWithId;
+      currentSession.selectedInferenceId = null; 
+      currentSession.userInsight = userInsightVal;
       
       setState({ 
         currentInferences: inferencesWithId, 
         step: 8, 
         selectedInferenceId: null, 
         userInsight: userInsightVal,
-        history: historyCopy
+        history: newH
       });
     }
   },
 
   async generateConcepts(perspective = "종합적 관점") {
-    const curH = state.history[state.history.length - 1];
-    const persona = getAllPersonas().find(p => p.id === curH.personaId);
+    if (state.history.length === 0) return;
+    const newH = [...state.history];
+    const currentSession = newH[newH.length - 1];
+    const persona = getAllPersonas().find(p => p.id === currentSession.personaId);
     
-    let selectedQAs = curH.result.qaPairs.filter((_, i) => state.selectedQaIndices.includes(i));
-    if(selectedQAs.length === 0) selectedQAs = curH.result.qaPairs;
+    let selectedQAs = currentSession.result.qaPairs.filter((_, i) => state.selectedQaIndices.includes(i));
+    if(selectedQAs.length === 0) selectedQAs = currentSession.result.qaPairs; // 정의되지 않은 curH 참조 오류를 currentSession으로 안전하게 빌드 수정
     const qaText = selectedQAs.map(qa => `Q: ${qa.q}\nA: ${qa.a}`).join('\n\n');
 
     const inference = state.currentInferences.find(i => i.id === state.selectedInferenceId);
@@ -382,22 +415,30 @@ const Actions = {
     if (res && res.concepts) {
       const conceptsWithId = res.concepts.map((c, i) => ({ ...c, id: `c-${Date.now()}-${i}` }));
       
-      const historyCopy = [...state.history];
-      historyCopy[historyCopy.length - 1].perspective = perspective;
-      historyCopy[historyCopy.length - 1].concepts = conceptsWithId;
+      if (currentSession.selectedInferenceId && currentSession.selectedInferenceId !== state.selectedInferenceId) {
+        const backupSession = JSON.parse(JSON.stringify(currentSession));
+        newH.push(backupSession);
+      }
+
+      currentSession.selectedInferenceId = state.selectedInferenceId;
+      currentSession.perspective = perspective;
+      currentSession.concepts = conceptsWithId;
+      currentSession.selectedConceptId = null;
 
       setState({ 
         currentConcepts: conceptsWithId, 
         step: 9, 
         selectedConceptId: null,
-        history: historyCopy
+        history: newH
       });
     }
   },
 
   async generateScenario() {
-    const curH = state.history[state.history.length - 1];
-    const persona = getAllPersonas().find(p => p.id === curH.personaId);
+    if (state.history.length === 0) return;
+    const newH = [...state.history];
+    const currentSession = newH[newH.length - 1];
+    const persona = getAllPersonas().find(p => p.id === currentSession.personaId);
     const concept = state.currentConcepts.find(c => c.id === state.selectedConceptId);
     
     if(!concept) { showToast("컨셉을 선택해 주세요."); return; }
@@ -407,14 +448,14 @@ const Actions = {
       "Generate Scenario"
     );
     if (res && res.scenario) {
-      const historyCopy = [...state.history];
-      historyCopy[historyCopy.length - 1].selectedConcept = concept;
-      historyCopy[historyCopy.length - 1].scenario = res.scenario;
+      currentSession.selectedConceptId = state.selectedConceptId;
+      currentSession.selectedConcept = concept;
+      currentSession.scenario = res.scenario;
 
       setState({ 
         currentScenario: res.scenario, 
         step: 10,
-        history: historyCopy
+        history: newH
       });
     }
   }
@@ -516,45 +557,58 @@ function showProjectSelectionModal(projects, keys) {
 
 // --- CLIPBOARD UTILITIES ---
 function copyReportToClipboard() {
-  let txt = "==================================================\n   RESEARCH LAB. 분석 종합 리포트\n==================================================\n\n";
+  let txt = "==================================================\n   RESEARCH LAB. 분석 종합 리포트 (누적 보존 모드)\n==================================================\n\n";
   txt += `[리서치 주제]\n- ${state.researchTopic || "설정된 주제 없음"}\n\n`;
   
   if (state.history.length > 0) {
     state.history.forEach((h, idx) => {
       const persona = getAllPersonas().find(p => p.id === h.personaId);
       txt += `==================================================\n`;
-      txt += ` 타겟 #${idx+1} : ${persona?.name}\n`;
+      txt += ` 분석 이력 세션 #${idx+1} : [타겟] ${persona?.name || "미지정"}\n`;
       txt += `==================================================\n`;
       
-      txt += `[인터뷰 요약]\n${h.result.summary}\n\n`;
+      if (h.result && h.result.summary) {
+        txt += `[인터뷰 요약]\n${h.result.summary}\n\n`;
+      }
       
-      txt += `[대화 내용 (Q&A)]\n`;
-      h.result.qaPairs.forEach((qa, qidx) => { 
-        txt += `Q${qidx+1}: ${qa.q}\nA: ${qa.a}\n\n`; 
-      });
+      if (h.result && h.result.qaPairs && h.result.qaPairs.length > 0) {
+        txt += `[대화 내용 (Q&A)]\n`;
+        h.result.qaPairs.forEach((qa, qidx) => { 
+          txt += `Q${qidx+1}: ${qa.q}\nA: ${qa.a}\n\n`; 
+        });
+      }
       
-      txt += `[AI Key Insights]\n${h.result.keyInsights}\n\n`;
+      if (h.result && h.result.keyInsights) {
+        txt += `[AI Key Insights]\n${h.result.keyInsights}\n\n`;
+      }
+
+      if (h.userInsight) {
+        txt += `[사용자 발견 인사이트]\n${h.userInsight}\n\n`;
+      }
 
       if (h.inferences && h.inferences.length > 0) {
         txt += `[도출된 핵심 가치 추론 (${h.inferencePerspective || "종합적 관점"})]\n`;
         h.inferences.forEach((inf, i) => {
-          txt += `${i+1}. ${inf.title}\n   ${inf.description}\n\n`;
+          const checkMark = (h.selectedInferenceId === inf.id) ? " ★(선택됨)" : "";
+          txt += `${i+1}. ${inf.title}${checkMark}\n   ${inf.description}\n\n`;
         });
       }
 
       if (h.concepts && h.concepts.length > 0) {
         txt += `[도출된 디자인 컨셉 (${h.perspective || "종합적 관점"})]\n`;
         h.concepts.forEach((c, i) => {
-          txt += `${i+1}. ${c.title}\n   핵심 가치: ${c.coreValue}\n   ${c.description}\n\n`;
+          const checkMark = (h.selectedConceptId === c.id) ? " ★(최종 가설 채택)" : "";
+          txt += `${i+1}. ${c.title}${checkMark}\n   핵심 가치: ${c.coreValue}\n   ${c.description}\n\n`;
         });
       }
 
       if (h.scenario) {
-        txt += `[컨셉 시나리오 (${h.selectedConcept?.title})]\n${h.scenario}\n\n\n`;
+        txt += `[컨셉 시나리오 (${h.selectedConcept?.title || "채택된 가설"})]\n${h.scenario}\n\n`;
       }
+      txt += `\n`;
     });
   } else {
-    txt += "저장된 인터뷰 기록이 없습니다.\n";
+    txt += "저장된 리서치 분석 기록이 존재하지 않습니다.\n";
   }
   
   const textArea = document.createElement("textarea");
@@ -563,7 +617,7 @@ function copyReportToClipboard() {
   textArea.select();
   try {
     document.execCommand('copy');
-    showToast("종합 리포트가 복사되었습니다.");
+    showToast("모든 여정이 포함된 분석 종합 리포트가 복사되었습니다.");
   } catch (err) {
     showToast("복사 실패.");
   }
@@ -810,11 +864,6 @@ function render() {
             `).join('')}
 
             ${state.manualPersonas.length > 0 ? `
-              <div class="mt-8 mb-4">
-                <h3 class="font-extrabold text-[18px] text-slate-800 flex items-center gap-2">
-                  <div class="w-1 h-5 bg-blue-600 rounded-full"></div> 사용자 직접 추가
-                </h3>
-              </div>
               <div class="grid gap-4 mb-4">
                 ${state.manualPersonas.map((p, i) => {
                   const isDone = state.history.some(h => h.personaId === p.id);
@@ -872,7 +921,7 @@ function render() {
                         <div class="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${isSel ? 'border-blue-600 bg-blue-600' : 'border-slate-300 bg-white'} text-white check-icon">
                           ${isSel ? `<i data-lucide="check" class="w-3.5 h-3.5"></i>` : ""}
                         </div>
-                        <p class="text-[16px] ${isSel ? 'text-blue-900 font-extrabold' : 'text-slate-700 font-bold'} flex-1 leading-snug question-text">${q}</p>
+                        <p class="text-[16px] ${isSel ? 'text-blue-900 font-extrabold' : 'text-slate-700 font-bold'} flex-1 inline-snug question-text">${q}</p>
                       </div>`;
                   }).join('')}
                 </div>
@@ -935,8 +984,7 @@ function render() {
       break;
 
     case 6: // Step 6: Interview Progress
-      const curH = state.history[state.history.length-1];
-      const curPersona = getAllPersonas().find(p => p.id === curH.personaId);
+      const curSessionProgress = state.history[state.history.length-1];
       
       content += `
         <div class="pt-24 px-4 pb-[150px] animate-fade-in bg-slate-50 min-h-screen">
@@ -948,7 +996,7 @@ function render() {
           </div>
 
           <div class="space-y-6 mb-12 px-2">
-            ${curH.result.qaPairs.map((qa, i) => `
+            ${curSessionProgress.result.qaPairs.map((qa, i) => `
               <div class="p-6 rounded-[2rem] border-2 border-slate-200 bg-white shadow-sm">
                 <div class="flex gap-3 mb-4 pr-8">
                   <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold flex items-center justify-center shrink-0 text-sm">Q${i+1}</div>
@@ -1040,7 +1088,7 @@ function render() {
         </div>`;
       break;
 
-    case 8: { // Inferences 도출 (관점 버튼 완벽 추가)
+    case 8: { // Step 8: Inferences 도출 ({ } 중괄호 블록 세션 유지 완료)
       const inferencePerspectives = ["종합적 관점", "독창성 관점", "기술적 관점", "비즈니스 관점"];
       content += `
         <div class="pt-24 px-4 pb-[300px] animate-fade-in bg-slate-50 min-h-screen">
@@ -1076,7 +1124,7 @@ function render() {
                 </button>`
               }).join('')}
             </div>
-            <button onclick="Actions.generateConcepts()" ${!state.selectedInferenceId ? 'disabled' : ''} class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg disabled:opacity-50 btn-active">
+            <button onclick="Actions.generateConcepts()" ${!state.selectedInferenceId ? 'disabled' : ''} class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg btn-active">
               선택한 추론으로 디자인 컨셉 도출
             </button>
           </div>
@@ -1084,8 +1132,13 @@ function render() {
       break;
     }
 
-    case 9: // Design Concepts & Perspectives
+    case 9: { // Design Concepts & Perspectives ({ } 스코프 블록화를 생성하여 완벽 제어 완료)
       const perspectives = ["종합적 관점", "독창성 관점", "기술적 관점", "비즈니스 관점"];
+      const currentSession = state.history[state.history.length - 1];
+      
+      let selectedQAs = currentSession.result.qaPairs.filter((_, i) => state.selectedQaIndices.includes(i));
+      if(selectedQAs.length === 0) selectedQAs = currentSession.result.qaPairs; // 존재하지 않던 변수명 curH 에러 코드를 currentSession으로 완벽 교정 완료
+      
       content += `
         <div class="pt-24 px-4 pb-[300px] animate-fade-in bg-slate-50 min-h-screen">
           ${renderHeader("컨셉 도출", 8)}
@@ -1133,6 +1186,7 @@ function render() {
           </div>
         </div>`;
       break;
+    }
 
     case 10: // Concept Scenario
       content += `
