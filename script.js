@@ -87,7 +87,7 @@ const PROMPTS = {
   [선택된 핵심 가치 추론]
   ${inference.title}: ${inference.description}
 
-  위 내용과 선택된 "핵심 가치 추론"을 중심 기반으로 삼아, "${perspective}" 관점에서 완전히 새롭고 창의적인 디자인 컨셉(가설) 3가지를 제안해 주세요. 단순한 문제 해결을 넘어, 추론된 중요한 가치들을 중심으로 새로운 창의적 컨셉이 될 수 있는 '가설'들이 제안되어야 합니다.
+  위 내용과 선택된 "핵심 가치 추론"을 중심 기반으로 삼아, "${perspective}" 관점에서 완전히 새롭고 창의적인 디자인 컨셉(g설) 3가지를 제안해 주세요. 단순한 문제 해결을 넘어, 추론된 중요한 가치들을 중심으로 새로운 창의적 컨셉이 될 수 있는 '가설'들이 제안되어야 합니다.
 
   [STRICT RULE]
   - 각 컨셉에는 반드시 도출된 추론에 기반한 "핵심 가치(coreValue)" 항목이 포함되어야 하며, 2줄 이상의 상세한 문장으로 설명해 주세요.
@@ -400,7 +400,7 @@ const Actions = {
     const persona = getAllPersonas().find(p => p.id === currentSession.personaId);
     
     let selectedQAs = currentSession.result.qaPairs.filter((_, i) => state.selectedQaIndices.includes(i));
-    if(selectedQAs.length === 0) selectedQAs = curH.result.qaPairs;
+    if(selectedQAs.length === 0) selectedQAs = currentSession.result.qaPairs;
     const qaText = selectedQAs.map(qa => `Q: ${qa.q}\nA: ${qa.a}`).join('\n\n');
 
     const inference = state.currentInferences.find(i => i.id === state.selectedInferenceId);
@@ -864,11 +864,6 @@ function render() {
             `).join('')}
 
             ${state.manualPersonas.length > 0 ? `
-              <div class="mt-8 mb-4">
-                <h3 class="font-extrabold text-[18px] text-slate-800 flex items-center gap-2">
-                  <div class="w-1 h-5 bg-blue-600 rounded-full"></div> 사용자 직접 추가
-                </h3>
-              </div>
               <div class="grid gap-4 mb-4">
                 ${state.manualPersonas.map((p, i) => {
                   const isDone = state.history.some(h => h.personaId === p.id);
@@ -926,7 +921,7 @@ function render() {
                         <div class="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${isSel ? 'border-blue-600 bg-blue-600' : 'border-slate-300 bg-white'} text-white check-icon">
                           ${isSel ? `<i data-lucide="check" class="w-3.5 h-3.5"></i>` : ""}
                         </div>
-                        <p class="text-[16px] ${isSel ? 'text-blue-900 font-extrabold' : 'text-slate-700 font-bold'} flex-1 leading-snug question-text">${q}</p>
+                        <p class="text-[16px] ${isSel ? 'text-blue-900 font-extrabold' : 'text-slate-700 font-bold'} flex-1 inline-snug question-text">${q}</p>
                       </div>`;
                   }).join('')}
                 </div>
@@ -989,7 +984,7 @@ function render() {
       break;
 
     case 6: // Step 6: Interview Progress
-      const curH = state.history[state.history.length-1];
+      const currentH = state.history[state.history.length-1];
       
       content += `
         <div class="pt-24 px-4 pb-[150px] animate-fade-in bg-slate-50 min-h-screen">
@@ -1001,7 +996,7 @@ function render() {
           </div>
 
           <div class="space-y-6 mb-12 px-2">
-            ${curH.result.qaPairs.map((qa, i) => `
+            ${currentH.result.qaPairs.map((qa, i) => `
               <div class="p-6 rounded-[2rem] border-2 border-slate-200 bg-white shadow-sm">
                 <div class="flex gap-3 mb-4 pr-8">
                   <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold flex items-center justify-center shrink-0 text-sm">Q${i+1}</div>
@@ -1093,7 +1088,7 @@ function render() {
         </div>`;
       break;
 
-    case 8: { // Step 8: Inferences 도출 (Syntax 에러 방지를 위해 확실하게 { } 블록화 완료)
+    case 8: { // Step 8: Inferences 도출 ({ } 중중괄호 스코프 블록화를 유지하여 완벽화)
       const inferencePerspectives = ["종합적 관점", "독창성 관점", "기술적 관점", "비즈니스 관점"];
       content += `
         <div class="pt-24 px-4 pb-[300px] animate-fade-in bg-slate-50 min-h-screen">
@@ -1137,8 +1132,13 @@ function render() {
       break;
     }
 
-    case 9: // Design Concepts & Perspectives
+    case 9: { // Design Concepts & Perspectives (curH에 정의되지 않은 변수 참조 에러를 currentSession으로 안전하게 바꿈)
       const perspectives = ["종합적 관점", "독창성 관점", "기술적 관점", "비즈니스 관점"];
+      const currentSession = state.history[state.history.length - 1];
+      
+      let selectedQAs = currentSession.result.qaPairs.filter((_, i) => state.selectedQaIndices.includes(i));
+      if(selectedQAs.length === 0) selectedQAs = currentSession.result.qaPairs;
+      
       content += `
         <div class="pt-24 px-4 pb-[300px] animate-fade-in bg-slate-50 min-h-screen">
           ${renderHeader("컨셉 도출", 8)}
@@ -1163,95 +1163,3 @@ function render() {
               </div>`
             }).join('')}
           </div>
-
-          <div class="mb-10 px-2">
-            <button onclick="setState({step: 3})" class="w-full h-14 bg-white border-2 border-slate-200 text-slate-700 rounded-2xl font-bold text-[16px] flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors btn-active shadow-sm">
-              <i data-lucide="users" class="w-5 h-5"></i> 다른 타겟 인터뷰하기
-            </button>
-          </div>
-
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-            <div class="grid grid-cols-2 gap-2 mb-4">
-              ${perspectives.map(p => {
-                const isActive = state.currentPerspective === p;
-                return `
-                <button onclick="Actions.generateConcepts('${p}')" class="py-3 rounded-xl font-bold text-[14px] border transition-all ${isActive ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}">
-                  ${p}
-                </button>`
-              }).join('')}
-            </div>
-            <button onclick="Actions.generateScenario()" ${!state.selectedConceptId ? 'disabled' : ''} class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[17px] shadow-lg disabled:opacity-50 btn-active">
-              컨셉 시나리오 보기
-            </button>
-          </div>
-        </div>`;
-      break;
-
-    case 10: // Concept Scenario
-      content += `
-        <div class="pt-24 px-6 pb-40 animate-fade-in bg-slate-50 min-h-screen">
-          ${renderHeader("컨셉 시나리오", 9)}
-          
-          <div class="mb-8">
-            <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900 leading-snug">사용자 경험<br/>시나리오</h2>
-            <p class="text-blue-700 text-[16px] font-bold">선택하신 컨셉이 적용된 미래의 모습을 확인하세요.</p>
-          </div>
-
-          <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-md mb-8 relative">
-            <button onclick="copyScenarioToClipboard()" class="absolute top-6 right-6 p-2 text-slate-400 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 rounded-lg transition-colors" title="시나리오 복사하기">
-              <i data-lucide="copy" class="w-5 h-5"></i>
-            </button>
-            <div class="text-slate-900 font-bold text-[16px] leading-loose whitespace-pre-line mt-4">
-              ${state.currentScenario}
-            </div>
-          </div>
-
-          <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-50/90 backdrop-blur-lg border-t border-slate-200/50 max-w-[430px] mx-auto space-y-3 z-[60]">
-            <button onclick="copyReportToClipboard()" class="w-full h-14 bg-dark-blue hover:bg-dark-blue-hover text-white rounded-2xl font-bold text-[16px] shadow-lg flex items-center justify-center gap-2">
-              <i data-lucide="copy" class="w-5 h-5"></i> 전체 리포트 복사하기
-            </button>
-            <button onclick="setState({step: 0})" class="w-full h-14 bg-white border border-slate-200 text-slate-700 rounded-2xl font-bold text-[16px] flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors btn-active shadow-sm">
-              <i data-lucide="home" class="w-5 h-5"></i> 처음으로 돌아가기
-            </button>
-          </div>
-        </div>`;
-      break;
-  }
-  
-  root.innerHTML = `<div class="w-full max-w-[430px] mx-auto min-h-screen shadow-[0_0_50px_rgba(0,0,0,0.05)] relative overflow-x-hidden bg-slate-50">${content}</div>`;
-  lucide.createIcons();
-}
-
-// --- BOOTSTRAP ---
-function initApp() {
-  render();
-  setInterval(() => {
-    if (state.step > 0 || (state.step === 1 && state.researchTopic.trim() !== "")) {
-      const { apiKey, isAnalyzing, errorMsg, ...dataToSave } = state;
-      
-      let projects = {};
-      try {
-        projects = JSON.parse(localStorage.getItem(PROJECTS_STORAGE_KEY)) || {};
-      } catch(e) {}
-
-      if (!currentProjectId) {
-        currentProjectId = 'proj_' + Date.now();
-      }
-
-      let title = state.researchTopic.trim();
-      if (!title) title = "새 프로젝트 " + new Date().toLocaleTimeString();
-      else if (title.length > 20) title = title.substring(0, 20) + "...";
-
-      projects[currentProjectId] = {
-        id: currentProjectId,
-        title: title,
-        updatedAt: Date.now(),
-        data: dataToSave
-      };
-
-      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
-    }
-  }, 5000);
-}
-
-initApp();
