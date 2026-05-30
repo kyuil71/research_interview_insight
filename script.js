@@ -285,7 +285,6 @@ const Actions = {
 
   async generateSurveys() {
     const persona = getAllPersonas().find(p => p.id === state.selectedPersonaId);
-    // 오타 완벽 수정 (GENERATE_SURVEYS)
     const res = await callGemini(PROMPTS.GENERATE_SURVEYS(state.researchTopic, persona), "Generate questions.");
     if (res) setState({ aiSurveys: res.surveys, step: 4 });
   },
@@ -560,6 +559,25 @@ function showProjectSelectionModal(projects, keys) {
 function copyReportToClipboard() {
   let txt = "==================================================\n   RESEARCH LAB. 분석 종합 리포트 (누적 보존 모드)\n==================================================\n\n";
   txt += `[리서치 주제]\n- ${state.researchTopic || "설정된 주제 없음"}\n\n`;
+
+  // 타겟 리스트 추가 부분
+  if (state.aiCategories && state.aiCategories.length > 0) {
+    txt += `==================================================\n`;
+    txt += ` 제안된 핵심 인터뷰 타겟 리스트\n`;
+    txt += `==================================================\n`;
+    state.aiCategories.forEach(cat => {
+      txt += `\n[${cat.categoryName}]\n`;
+      cat.personas.forEach(p => {
+        txt += `- ${p.name}\n  설명: ${p.description}\n  니즈: ${p.needs}\n\n`;
+      });
+    });
+    if (state.manualPersonas && state.manualPersonas.length > 0) {
+      txt += `\n[사용자 직접 추가 타겟]\n`;
+      state.manualPersonas.forEach(p => {
+        txt += `- ${p.name}\n  설명: ${p.description}\n\n`;
+      });
+    }
+  }
   
   if (state.history.length > 0) {
     state.history.forEach((h, idx) => {
