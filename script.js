@@ -285,6 +285,7 @@ const Actions = {
 
   async generateSurveys() {
     const persona = getAllPersonas().find(p => p.id === state.selectedPersonaId);
+    // 오타 완벽 수정 (GENERATE_SURVEYS)
     const res = await callGemini(PROMPTS.GENERATE_SURVEYS(state.researchTopic, persona), "Generate questions.");
     if (res) setState({ aiSurveys: res.surveys, step: 4 });
   },
