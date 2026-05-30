@@ -285,7 +285,7 @@ const Actions = {
 
   async generateSurveys() {
     const persona = getAllPersonas().find(p => p.id === state.selectedPersonaId);
-    const res = await callGemini(PROMPTS.GENERATE_SURveys(state.researchTopic, persona), "Generate questions.");
+    const res = await callGemini(PROMPTS.GENERATE_SURVEYS(state.researchTopic, persona), "Generate questions.");
     if (res) setState({ aiSurveys: res.surveys, step: 4 });
   },
   
@@ -400,7 +400,7 @@ const Actions = {
     const persona = getAllPersonas().find(p => p.id === currentSession.personaId);
     
     let selectedQAs = currentSession.result.qaPairs.filter((_, i) => state.selectedQaIndices.includes(i));
-    if(selectedQAs.length === 0) selectedQAs = currentSession.result.qaPairs; // 정의되지 않은 curH 참조 오류를 currentSession으로 안전하게 빌드 수정
+    if(selectedQAs.length === 0) selectedQAs = currentSession.result.qaPairs;
     const qaText = selectedQAs.map(qa => `Q: ${qa.q}\nA: ${qa.a}`).join('\n\n');
 
     const inference = state.currentInferences.find(i => i.id === state.selectedInferenceId);
@@ -864,6 +864,11 @@ function render() {
             `).join('')}
 
             ${state.manualPersonas.length > 0 ? `
+              <div class="mt-8 mb-4">
+                <h3 class="font-extrabold text-[18px] text-slate-800 flex items-center gap-2">
+                  <div class="w-1 h-5 bg-blue-600 rounded-full"></div> 사용자 직접 추가
+                </h3>
+              </div>
               <div class="grid gap-4 mb-4">
                 ${state.manualPersonas.map((p, i) => {
                   const isDone = state.history.some(h => h.personaId === p.id);
@@ -921,7 +926,7 @@ function render() {
                         <div class="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${isSel ? 'border-blue-600 bg-blue-600' : 'border-slate-300 bg-white'} text-white check-icon">
                           ${isSel ? `<i data-lucide="check" class="w-3.5 h-3.5"></i>` : ""}
                         </div>
-                        <p class="text-[16px] ${isSel ? 'text-blue-900 font-extrabold' : 'text-slate-700 font-bold'} flex-1 inline-snug question-text">${q}</p>
+                        <p class="text-[16px] ${isSel ? 'text-blue-900 font-extrabold' : 'text-slate-700 font-bold'} flex-1 leading-snug question-text">${q}</p>
                       </div>`;
                   }).join('')}
                 </div>
@@ -1088,7 +1093,7 @@ function render() {
         </div>`;
       break;
 
-    case 8: { // Step 8: Inferences 도출 ({ } 중괄호 블록 세션 유지 완료)
+    case 8: { // Step 8: Inferences 도출
       const inferencePerspectives = ["종합적 관점", "독창성 관점", "기술적 관점", "비즈니스 관점"];
       content += `
         <div class="pt-24 px-4 pb-[300px] animate-fade-in bg-slate-50 min-h-screen">
@@ -1132,12 +1137,12 @@ function render() {
       break;
     }
 
-    case 9: { // Design Concepts & Perspectives ({ } 스코프 블록화를 생성하여 완벽 제어 완료)
+    case 9: { // Design Concepts & Perspectives
       const perspectives = ["종합적 관점", "독창성 관점", "기술적 관점", "비즈니스 관점"];
       const currentSession = state.history[state.history.length - 1];
       
       let selectedQAs = currentSession.result.qaPairs.filter((_, i) => state.selectedQaIndices.includes(i));
-      if(selectedQAs.length === 0) selectedQAs = currentSession.result.qaPairs; // 존재하지 않던 변수명 curH 에러 코드를 currentSession으로 완벽 교정 완료
+      if(selectedQAs.length === 0) selectedQAs = currentSession.result.qaPairs;
       
       content += `
         <div class="pt-24 px-4 pb-[300px] animate-fade-in bg-slate-50 min-h-screen">
