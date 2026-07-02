@@ -725,7 +725,6 @@ function showProjectSelectionModal(projects, keys) {
 // --- CLIPBOARD UTILITIES ---
 function copyReportToClipboard() {
   let txt = "==================================================\n   RESEARCH LAB. 분석 종합 리포트 (누적 보존 모드)\n==================================================\n\n";
-  txt += "⚠️ 본 리포트는 AI가 생성한 가상 시뮬레이션 결과입니다. 실제 사용자 데이터가 아니므로 아이디어 발굴 및 인터뷰 설계 참고용으로만 사용하시고, 중요한 의사결정 전 반드시 실제 사용자 조사로 검증하시기 바랍니다.\n\n";
   txt += `[리서치 주제]\n- ${state.researchTopic || "설정된 주제 없음"}\n\n`;
 
   // 타겟 리스트 추가 부분
@@ -876,13 +875,6 @@ function renderStepDots(currentStep) {
   return `<div class="flex items-center gap-1.5 pb-2 pt-1">${dots}</div>`;
 }
 
-// 신규: "이 콘텐츠는 AI 시뮬레이션" 고지 배너
-function renderDisclaimer() {
-  return `<div class="mx-2 mb-6 px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl text-amber-800 text-[13px] font-bold leading-relaxed">
-    ⚠️ 이 콘텐츠는 AI가 생성한 가상 시뮬레이션입니다. 실제 사용자 데이터가 아니므로 아이디어 발굴과 인터뷰 설계 참고용으로 활용하시고, 중요한 의사결정 전 실제 사용자 조사로 반드시 검증하세요.
-  </div>`;
-}
-
 function renderHeader(title, prevStep) {
   const canGoNext = state.step < state.maxStepReached;
   return `
@@ -951,7 +943,6 @@ function render() {
             </div>
             <h1 class="text-[42px] font-black leading-[1.15] tracking-tight mb-6">사용자의<br/><span class="text-slate-900">깊은 속마음</span>을<br/><span class="text-blue-600">탐색하세요.</span></h1>
             <p class="text-slate-900 text-[16px] leading-relaxed font-bold mb-3">프로젝트의 방향을 결정지을<br/>가장 핵심적인 인사이트를 도출해 드립니다.</p>
-            <p class="text-slate-900/70 text-[13px] leading-relaxed font-bold">⚠️ 모든 인터뷰는 AI가 만든 가상 시뮬레이션입니다. 실제 사용자 조사를 대체하지 않습니다.</p>
           </div>
           
           <div class="space-y-4 pb-12 z-10 button-area">
@@ -987,7 +978,6 @@ function render() {
       content += `
         <div class="pt-28 px-4 pb-36 animate-fade-in bg-slate-50 min-h-screen personas-page">
           ${renderHeader("타겟 제안", 1)}
-          ${renderDisclaimer()}
           <div class="mb-8 px-2">
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">핵심 인터뷰 타겟을 제안합니다</h2>
             <p class="text-blue-700 text-[16px] font-bold">4개 카테고리 타겟 General User, Lead User, Extreme User, Desire-Driven User</p>
@@ -1284,7 +1274,6 @@ function render() {
       content += `
         <div class="pt-28 px-4 pb-[380px] animate-fade-in bg-slate-50 min-h-screen">
           ${renderHeader("인터뷰 결과", 6)}
-          ${renderDisclaimer()}
           
           <div class="mb-8 px-2">
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">중요한 인사이트를<br/>선택해 주세요</h2>
@@ -1353,7 +1342,6 @@ function render() {
       content += `
         <div class="pt-28 px-4 pb-[300px] animate-fade-in bg-slate-50 min-h-screen">
           ${renderHeader("핵심 가치 추론", 7)}
-          ${renderDisclaimer()}
           
           <div class="mb-8 px-2">
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">인터뷰 기반<br/>핵심 가치 추론</h2>
@@ -1397,10 +1385,12 @@ function render() {
       const perspectives = ["종합적 관점", "독창성 관점", "기술적 관점", "비즈니스 관점"];
       const currentSession = state.history[state.history.length - 1];
       
+      let selectedQAs = currentSession.result.qaPairs.filter((_, i) => state.selectedQaIndices.includes(i));
+      if(selectedQAs.length === 0) selectedQAs = currentSession.result.qaPairs;
+      
       content += `
         <div class="pt-28 px-4 pb-[300px] animate-fade-in bg-slate-50 min-h-screen">
           ${renderHeader("컨셉 도출", 8)}
-          ${renderDisclaimer()}
           
           <div class="mb-8 px-2">
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900">핵심 추론 기반<br/>디자인 컨셉</h2>
@@ -1465,7 +1455,6 @@ function render() {
       content += `
         <div class="pt-28 px-6 pb-40 animate-fade-in bg-slate-50 min-h-screen">
           ${renderHeader("컨셉 시나리오", 9)}
-          ${renderDisclaimer()}
           
           <div class="mb-8">
             <h2 class="text-3xl font-black mb-3 tracking-tight text-slate-900 leading-snug">사용자 경험<br/>시나리오</h2>
