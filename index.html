@@ -1209,14 +1209,18 @@ ${JSON.stringify(personas)}
       }
 
       function instructionBox(id, onSend, placeholder, label) {
-        return `<section class="p-6 bg-slate-800 rounded-3xl shadow-xl mt-8">
-          <h3 class="t-label text-blue-300 mb-3">${esc(label || "AI 수정 지시")}</h3>
-          <div class="flex gap-2">
-            <input type="text" id="${id}" value="${escAttr(draft(id))}" oninput="setDraft('${id}', this.value)"
-              class="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3.5 text-white t-small outline-none placeholder:text-slate-300 focus:border-blue-400"
-              placeholder="${escAttr(placeholder)}" aria-label="수정 지시 입력">
-            <button type="button" aria-label="수정 요청 보내기" onclick="${onSend}" class="bg-blue-600 hover:bg-blue-500 text-white px-4 rounded-xl active:scale-95 transition-all"><i data-lucide="send" class="w-5 h-5"></i></button>
-          </div>
+        const title = esc(label || "AI 수정 지시");
+        // 좁은 화면에서 한 줄 입력칸과 버튼을 나란히 두면 버튼이 밀려 잘리므로 세로로 쌓습니다.
+        return `<section class="p-5 bg-slate-800 rounded-3xl shadow-xl mt-8">
+          <h3 class="t-label text-blue-300 mb-3">${title}</h3>
+          <label for="${id}" class="sr-only">수정 지시 입력</label>
+          <textarea id="${id}" rows="3" oninput="setDraft('${id}', this.value)"
+            class="w-full block min-w-0 bg-white/10 border border-white/20 rounded-xl px-4 py-3.5 text-white t-small outline-none resize-none placeholder:text-slate-300 focus:border-blue-400 mb-3"
+            placeholder="${escAttr(placeholder)}">${esc(draft(id))}</textarea>
+          <button type="button" onclick="${onSend}"
+            class="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold t-small flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
+            <i data-lucide="send" class="w-5 h-5"></i>${title}
+          </button>
         </section>`;
       }
 
@@ -2200,7 +2204,7 @@ ${JSON.stringify(personas)}
         const tab = (key, label, sub, icon) => {
           const on = state.personaSource === key;
           return `<button type="button" onclick="Actions.setPersonaSource('${key}')" aria-pressed="${on}"
-            class="flex-1 text-left p-5 rounded-2xl border-2 transition-all ${on ? "border-slate-900 bg-slate-900 shadow-lg" : "border-slate-300 bg-white hover:border-slate-500"}">
+            class="flex-1 min-w-0 text-left p-5 rounded-2xl border-2 transition-all ${on ? "border-slate-900 bg-slate-900 shadow-lg" : "border-slate-300 bg-white hover:border-slate-500"}">
             <span class="flex items-center gap-2 mb-2">
               <i data-lucide="${icon}" class="w-5 h-5 ${on ? "text-sky-300" : "text-slate-700"}"></i>
               ${on ? `<i data-lucide="check-circle-2" class="w-5 h-5 text-sky-300"></i>` : ""}
@@ -2498,7 +2502,7 @@ ${JSON.stringify(personas)}
                     <textarea id="qedit" rows="3" oninput="setDraft('qedit', this.value)"
                       class="w-full p-3 rounded-xl border border-blue-300 bg-white t-small text-slate-900 outline-none focus:border-blue-600 resize-none mb-3">${esc(draft("qedit"))}</textarea>
                     <div class="flex gap-2">
-                      <button type="button" onclick="Actions.saveQuestionEdit('${escAttr(q.id)}')" class="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold t-meta active:scale-95 transition-all">수정 완료</button>
+                      <button type="button" onclick="Actions.saveQuestionEdit('${escAttr(q.id)}')" class="flex-1 min-w-0 py-3 rounded-xl bg-blue-600 text-white font-bold t-meta active:scale-95 transition-all">수정 완료</button>
                       <button type="button" onclick="Actions.cancelQuestionEdit()" class="px-5 py-3 rounded-xl bg-white border border-slate-300 text-slate-700 font-bold t-meta">취소</button>
                     </div>
                   </div>`;
@@ -2600,13 +2604,14 @@ ${JSON.stringify(personas)}
 
           <section class="bg-slate-700 rounded-3xl p-6 shadow-xl">
             <h3 class="t-label text-blue-200 mb-3">추가 질문하기</h3>
-            <div class="flex gap-2">
-              <label for="followup" class="sr-only">추가 질문</label>
-              <input type="text" id="followup" value="${escAttr(draft("followup"))}" oninput="setDraft('followup', this.value)"
-                class="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3.5 text-white t-small outline-none placeholder:text-slate-300 focus:border-blue-400"
-                placeholder="더 궁금한 점을 물어보세요">
-              <button type="button" aria-label="추가 질문 보내기" onclick="Actions.askFollowUp()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 rounded-xl active:scale-95 transition-all"><i data-lucide="send" class="w-5 h-5"></i></button>
-            </div>
+            <label for="followup" class="sr-only">추가 질문</label>
+            <textarea id="followup" rows="3" oninput="setDraft('followup', this.value)"
+              class="w-full block min-w-0 bg-white/10 border border-white/20 rounded-xl px-4 py-3.5 text-white t-small outline-none resize-none placeholder:text-slate-300 focus:border-blue-400 mb-3"
+              placeholder="더 궁금한 점을 물어보세요">${esc(draft("followup"))}</textarea>
+            <button type="button" onclick="Actions.askFollowUp()"
+              class="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold t-small flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
+              <i data-lucide="send" class="w-5 h-5"></i>추가 질문하기
+            </button>
           </section>
 
           ${dock(primaryBtn("인터뷰 결과 정리하기", "setState({step:7})"))}
@@ -2631,7 +2636,7 @@ ${JSON.stringify(personas)}
           </section>
 
           <div class="flex items-center justify-between gap-2 mb-4">
-            <p class="t-meta text-slate-600 flex-1">선택하지 않으면 전체 대화가 반영됩니다.</p>
+            <p class="t-meta text-slate-600 flex-1 min-w-0">선택하지 않으면 전체 대화가 반영됩니다.</p>
             <div class="flex gap-3 flex-shrink-0">
               <button type="button" onclick="Actions.selectAllQa()" class="t-meta font-bold text-blue-700 underline underline-offset-4">전체 선택</button>
               <button type="button" onclick="Actions.clearQa()" class="t-meta font-bold text-slate-600 underline underline-offset-4">선택 해제</button>
