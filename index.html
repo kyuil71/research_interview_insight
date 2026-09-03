@@ -2,23 +2,2907 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Research Lab.</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Design Research Lab</title>
 
-  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- Pretendard Font -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
-  <!-- Custom Styles -->
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body class="bg-slate-50">
-  <div id="root"></div>
 
-  <!-- App Script -->
-  <script type="module" src="script.js"></script>
+  <style>
+    /* ==========================================================
+       타이포 시스템 — Tailwind 임의값(text-[15px]) 남용을 대체.
+       body 접두사로 특이도를 한 단계 올려 유틸리티와의 충돌을 차단.
+       ========================================================== */
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      background-color: #e2e8f0;
+      color: #0f172a;
+      font-size: 17px;
+      line-height: 1.8;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+    }
+
+    /* 어떤 유틸리티도 16px 밑으로 내려가지 못하게 상속을 강제합니다. */
+    body * { font-size: inherit; }
+    body .t-display { font-size: 36px; line-height: 1.15; font-weight: 800; letter-spacing: -0.025em; }
+    body .t-h1      { font-size: 26px; line-height: 1.35; font-weight: 800; letter-spacing: -0.015em; }
+    body .t-h2      { font-size: 22px; line-height: 1.4;  font-weight: 800; letter-spacing: -0.01em; }
+    body .t-h3      { font-size: 19px; line-height: 1.5;  font-weight: 700; }
+    body .t-body    { font-size: 17px; line-height: 1.8;  font-weight: 400; }
+    body .t-small   { font-size: 16px; line-height: 1.75; }
+    body .t-meta    { font-size: 16px; line-height: 1.65; }
+    body .t-label   { font-size: 16px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+
+    /* 한국어 본문은 양쪽정렬 시 어절 간격이 벌어져 오히려 읽기 어려움 → 왼쪽 정렬 */
+    body .prose-ko { text-align: left; white-space: pre-line; }
+
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    @keyframes fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade-in { animation: fade-in 0.35s ease-out forwards; }
+    @keyframes scale-in { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .animate-scale-in { animation: scale-in 0.18s ease-out forwards; }
+
+    /* 분석 중 표시 — '동작 줄이기' 설정에서도 회전해야 하므로 전용 애니메이션 사용 */
+    @keyframes spinner-rotate { to { transform: rotate(360deg); } }
+    .spinner-ring {
+      width: 84px; height: 84px; border-radius: 50%;
+      border: 7px solid #e2e8f0; border-top-color: #2563eb; border-right-color: #2563eb;
+      animation: spinner-rotate 0.9s linear infinite;
+      will-change: transform;
+    }
+
+    /* 키보드 포커스 가시성 */
+    :focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; border-radius: 8px; }
+
+    /* 하단 고정 바 — 홈 인디케이터 영역 회피 */
+    .dock { padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+    /* 도크/헤더 높이는 화면마다 달라, 렌더 후 실제 높이로 여백을 맞춥니다(아래 syncLayout). */
+    .dock-space { padding-bottom: calc(170px + env(safe-area-inset-bottom)); }
+    .page-top { padding-top: 124px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *:not(.spinner-ring), *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+      .spinner-ring { animation-duration: 1.4s !important; }
+    }
+
+    /* 최소 글씨 크기 보장 — t-* 클래스(16px 이상)가 붙지 않은 요소는 본문 17px을 물려받습니다. */
+    body ::placeholder { font-size: inherit; }
+    body summary { font-size: inherit; }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="toast-region" aria-live="polite" class="sr-only"></div>
+
+  <script type="module">
+    (function () {
+      "use strict";
+
+      /* =========================================================
+         1. CONFIG / 상수
+         ========================================================= */
+      const CONFIG = {
+        MODEL_NAME: "gemini-flash-latest",
+        SESSION_KEY_API: "design_research_api_key_v2",
+        PROJECTS_KEY: "design_research_projects_v2",
+        MIGRATION_FLAG: "design_research_migrated_v2",
+        LEGACY_PATTERN: /^research_lab_projects_v(\d+)$/,
+        MAX_PROJECTS: 5,
+        AUTOSAVE_MS: 5000,
+        // 네모트론(실제 사용자 데이터) 확장 설정
+        NEMO: {
+          MAX_FILE_BYTES: 50 * 1024 * 1024,
+          LOCAL_CANDIDATES: 60,   // 로컬 키워드 검색으로 추리는 1차 후보 수
+          BATCH: 20,              // AI 분류 1회 호출당 후보 수
+          PER_CATEGORY: 3         // 카테고리당 최종 선정 인원 (4 × 3 = 12명)
+        }
+      };
+
+      const PERSPECTIVES = ["종합적 관점", "독창성 관점", "기술적 관점", "비즈니스 관점"];
+
+      const STAGES = [
+        { n: 1,  label: "주제 설정" },
+        { n: 2,  label: "타겟 제안" },
+        { n: 3,  label: "대상 선택" },
+        { n: 4,  label: "질문 설계" },
+        { n: 5,  label: "인터뷰 준비" },
+        { n: 6,  label: "인터뷰 진행" },
+        { n: 7,  label: "인터뷰 결과" },
+        { n: 8,  label: "핵심 가치 추론" },
+        { n: 9,  label: "디자인 컨셉" },
+        { n: 10, label: "컨셉 시나리오" }
+      ];
+
+      const NO_DATA = "이 항목은 AI 응답에 포함되지 않았습니다. 다시 생성해 보세요.";
+
+      /* =========================================================
+         2. PROMPTS
+         ========================================================= */
+      const PROMPTS = {
+        PERSONAS: (topic, instruction) => `You are a Senior UX/User Researcher. Topic: "${topic}".
+사용자를 다음 4가지 카테고리로 나누고, 각 카테고리별로 특성에 맞는 구체적인 페르소나를 3명씩(총 12명) 제안해 주세요.
+
+[카테고리 정의]
+1. 일반 사용자 (General User)
+2. 리드 사용자 (Lead User)
+3. 익스트림 사용자 (Extreme User)
+4. 디자이어 드리븐 사용자 (Desire-Driven User)
+
+[STRICT RULE]
+- 각 페르소나의 이름은 반드시 "콘텐츠 유목민: 30대 김민준"처럼 [수식어]: [연령/직업] [한국식 가상 이름] 형식으로 작성해 주세요.
+- "description"은 2줄 이상의 상세한 특성 정보를 포함해 주세요.
+- "needs"는 2줄 이상의 다양하고 구체적인 니즈를 포함해 주세요.
+- 12명의 페르소나는 연령대, 성별, 직업, 라이프스타일이 서로 겹치지 않도록 최대한 다양하게 구성해 주세요.
+- 모든 문장은 전문적이고 명확한 존댓말을 사용해 주세요.
+${instruction ? `\n[추가 지시사항]\n${instruction}\n` : ""}
+[FORMAT] Return exactly this JSON:
+{"categories":[{"categoryName":"일반 사용자 (General User)","categoryDesc":"카테고리 설명","personas":[{"name":"[수식어]: [연령/직업] [이름]","description":"상세 설명","needs":"구체적인 니즈"}]}]}`,
+
+        SINGLE_PERSONA: (topic, categoryName, categoryDesc, existingNames) => `You are a Senior UX/User Researcher. Topic: "${topic}".
+카테고리: "${categoryName}" (${categoryDesc})
+이미 존재하는 페르소나들: ${existingNames}
+
+위 카테고리에 어울리는 새로운 페르소나 1명을 제안해 주세요. 반드시 기존 페르소나들과 연령대, 직업, 라이프스타일이 겹치지 않는 새로운 인물이어야 합니다.
+[STRICT RULE]
+- 이름은 "콘텐츠 유목민: 30대 김민준"처럼 [수식어]: [연령/직업] [한국식 가상 이름] 형식으로 작성해 주세요.
+- "description"은 2줄 이상, "needs"는 2줄 이상 상세히 작성해 주세요.
+- 모든 문장은 전문적이고 명확한 존댓말을 사용해 주세요.
+[FORMAT] Return: {"persona":{"name":"...","description":"...","needs":"..."}}`,
+
+        SURVEYS: (topic, persona, instruction) => `You are an Expert UX Interviewer. Topic: "${topic}".
+Persona: "${persona.name}" / ${persona.description} / Needs: ${persona.needs}
+
+이 페르소나에게 던질 심층 인터뷰 질문 15개를 3개 카테고리(카테고리당 5문항)로 나누어 제안해 주세요.
+[STYLE] 명확하고 대화하듯 자연스러운 한국어 존댓말을 사용해 주세요.
+${instruction ? `\n[추가 지시사항]\n${instruction}\n` : ""}
+[FORMAT] Return: {"surveys":[{"title":"카테고리 제목","questions":["질문1","질문2","질문3","질문4","질문5"]}]}`,
+
+        INTERVIEW: (topic, persona, questions) => `You are a Virtual User named ${persona.name}. Topic: "${topic}".
+Context: ${persona.description}
+Needs: ${persona.needs}
+
+아래 질문에 이 페르소나의 입장에서 사실감 있게 모두 답변해 주세요.
+${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}
+
+[RULE]
+- 각 질문에 대한 답변은 5문장 정도로 상세하게 작성해 주세요.
+- 페르소나의 성격이 드러나는 구체적인 에피소드를 반드시 포함하세요.
+- 모든 답변은 하나의 일관된 성격과 배경을 가진 같은 인물이 말하는 것처럼 서로 모순되지 않아야 합니다.
+- Markdown bold(**) 사용 금지. 모든 문장은 존댓말을 사용해 주세요.
+- 질문 순서와 개수를 그대로 유지해 주세요.
+[FORMAT] "keyInsights"는 1) 2) 3) 형식으로 작성해 주세요.
+Return: {"summary":"세션 전체 요약","qaPairs":[{"q":"질문 원문","a":"답변"}],"keyInsights":"1) ...\\n2) ..."}`,
+
+        FOLLOW_UP: (topic, persona, priorQAs, question) => `You are a Virtual User named ${persona.name}. Topic: "${topic}".
+Context: ${persona.description}
+Needs: ${persona.needs}
+
+[이전 인터뷰 대화 내용 — 반드시 참고하여 일관된 성격/의견으로 답변할 것]
+${(priorQAs || []).map(qa => `Q: ${qa.q}\nA: ${qa.a}`).join("\n\n")}
+
+[추가 질문]
+"${question}"
+
+[RULE] 위 이전 답변들과 성격, 배경, 의견이 일관되게 5문장 정도로 답변하세요. Markdown bold(**) 사용 금지. 모든 문장은 존댓말을 사용해 주세요.
+Return: {"q":"${question}","a":"답변"}`,
+
+        INFERENCES: (topic, persona, qaText, userInsight, perspective) => `You are a Senior UX Strategist. Topic: "${topic}". Persona: "${persona.name}".
+[선택된 주요 대화 종합]
+${qaText}
+[사용자 직접 작성 인사이트]
+${userInsight || "작성된 내용 없음"}
+
+위 인터뷰 내용 전체와 사용자 인사이트를 파편적으로 보지 않고 종합적으로 분석하여, "${perspective}"에서 사용자에게 가장 중요한 핵심 가치를 도출하는 "추론(Inference)" 3가지를 작성해 주세요. 개별 대화에 대한 1:1 답변이 아닌, 융합적이고 종합적인 추론이어야 합니다.
+
+[분석 및 도출 방식 가이드] 아래 논리적 흐름 중 맥락에 가장 적합한 방식을 적용해 주세요.
+1. "인터뷰를 통해 알게 된 ~~~ 내용들로 인해 ~~~것이 중요한 가치라고 유추합니다."
+2. "인터뷰를 통해 알게 된 ~~~ 내용들로 인해 ~~~것이 미래에 중요한 가치가 될 것이라고 유추합니다."
+3. "인터뷰를 통해 알게 된 ~~~ 내용들로 인해 ~~~것들의 조합이 중요한 가치가 될 것이라고 유추합니다."
+
+[STRICT RULE]
+- 각 추론의 설명(description)은 반드시 3줄 이상의 분량으로 상세하게 작성해 주세요.
+- 모든 문장은 전문적이고 명확한 한국어 존댓말을 사용해 주세요.
+Return: {"inferences":[{"title":"추론 제목 (핵심 가치 키워드)","description":"3줄 이상의 종합적이고 상세한 설명"}]}`,
+
+        CONCEPTS: (topic, persona, qaText, userInsight, inference, perspective) => `You are a Senior UX Strategist. Topic: "${topic}". Persona: "${persona.name}".
+[선택된 주요 대화 종합]
+${qaText}
+[사용자 분석 인사이트]
+${userInsight || "작성된 내용 없음"}
+[선택된 핵심 가치 추론]
+${inference.title}: ${inference.description}
+
+위 내용과 선택된 핵심 가치 추론을 중심 기반으로 삼아, "${perspective}"에서 완전히 새롭고 창의적인 디자인 컨셉(가설) 3가지를 제안해 주세요. 단순한 문제 해결을 넘어, 추론된 중요한 가치를 중심으로 새로운 창의적 컨셉이 될 수 있는 가설이어야 합니다.
+
+[STRICT RULE]
+- 각 컨셉에는 도출된 추론에 기반한 "coreValue"가 반드시 포함되어야 하며, 2줄 이상으로 설명해 주세요.
+- 각 컨셉의 "description"은 창의적인 가설과 구체적인 아이디어를 담아 4줄 이상으로 매우 상세하게 작성해 주세요.
+- 모든 문장은 전문적이고 명확한 한국어 존댓말을 사용해 주세요.
+Return: {"concepts":[{"title":"창의적 컨셉(가설) 제목","coreValue":"2줄 이상의 핵심 가치 설명","description":"4줄 이상의 상세한 컨셉 설명"}]}`,
+
+        SCENARIO: (topic, persona, concept) => `You are a Senior UX Designer. Topic: "${topic}". Persona: "${persona.name}".
+[선택된 디자인 컨셉]
+${concept.title}: ${concept.description}
+핵심 가치: ${concept.coreValue}
+
+위 컨셉을 바탕으로, 해당 페르소나가 일상에서 이 제품/서비스를 사용하는 구체적인 컨셉 시나리오(User Journey)를 작성해 주세요.
+[STYLE] 생동감 있고 전문적인 한국어 존댓말을 사용해 주세요. Markdown bold(**) 사용 금지. 시간 흐름에 따라 문단을 나눠 주세요.
+Return: {"scenario":"상세 시나리오 본문"}`
+      };
+
+      /* =========================================================
+         2-B. 네모트론 확장 — 상수 / 프롬프트 / 데이터 헬퍼
+         이 블록은 "실제 데이터에서 12명을 뽑아 state.categories에 채우는 일"까지만
+         담당합니다. 위의 PROMPTS와 3단계 이후의 로직은 전혀 사용하지 않고,
+         산출물의 형태(카테고리 4개 × 페르소나 3명)만 원본과 동일하게 맞춥니다.
+         ========================================================= */
+      const ARCHETYPES = [
+        {
+          key: "general",
+          short: "GENERAL USER",
+          name: "일반 사용자 (General User)",
+          desc: "과제 영역을 보통의 빈도와 방식으로 경험하는 다수 사용자입니다. 보편적인 기대치와 기본 사용 맥락을 확인할 수 있습니다.",
+          guide: "Mainstream user with typical frequency, ordinary constraints, and average expertise. Represents the majority experience."
+        },
+        {
+          key: "lead",
+          short: "LEAD USER",
+          name: "리드 사용자 (Lead User)",
+          desc: "시장보다 앞서 문제를 겪고 스스로 해법을 만들어 쓰는 사용자입니다. 앞으로 다수에게 확산될 니즈를 미리 보여 줍니다.",
+          guide: "Ahead of the market. Early adopter, power user, builds own workarounds or advanced tooling, high domain expertise."
+        },
+        {
+          key: "extreme",
+          short: "EXTREME USER",
+          name: "익스트림 사용자 (Extreme User)",
+          desc: "사용 강도나 제약 조건이 극단에 있는 사용자입니다. 일반 조건에서는 드러나지 않는 한계와 불편을 선명하게 보여 줍니다.",
+          guide: "Extreme frequency, intensity, scale, or constraint. Edge conditions such as heavy professional use, severe time/physical/environmental limits, or near-zero usage."
+        },
+        {
+          key: "desire",
+          short: "DESIRE-DRIVEN USER",
+          name: "디자이어 드리븐 사용자 (Desire-Driven User)",
+          desc: "기능적 필요보다 취향, 정체성, 되고 싶은 모습이 선택을 이끄는 사용자입니다. 감성적 가치와 상징적 동기를 확인할 수 있습니다.",
+          guide: "Driven by aspiration, taste, identity, self-expression, or emotional value rather than functional necessity."
+        }
+      ];
+
+      const NEMO_PROMPTS = {
+        ANALYZE_SYS: `You are a Senior Design Research Strategist. 주어진 과제(주제)와 추가 설명을 해석하여, 실제 사용자 데이터베이스에서 인터뷰 후보를 찾기 위한 검색 기준을 구성합니다.
+짧거나 모호한 과제명도 맥락을 추론해 확장하되, 존재하지 않는 사실을 지어내지 마세요.
+모든 설명 문장은 한국어 존댓말로 작성하고, 목록형 항목은 반드시 배열로 반환해 주세요.
+[FORMAT] Return exactly this JSON:
+{"researchIntent":"과제의 핵심 탐색 목적 (2~3문장)","importantContexts":["주요 탐색 영역"],"importantBehaviors":["주목해야 할 행동 특성"],"personaTypes":["관련 사용자 유형"],"productsAndServices":["관련 제품/서비스"],"lifeContexts":["관련 생활 맥락"],"painPoints":["예상되는 불편"],"needs":["잠재 니즈"],"keywords":["핵심 키워드"],"expandedKeywords":["확장 키워드"],"bilingualTerms":["English search terms"],"priorityFields":["데이터에서 우선 확인할 필드명 후보"],"occupations":["관련 직업"]}`,
+
+        ANALYZE_USER: (topic, description, instruction) => `[과제 또는 리서치 주제]
+${topic}
+
+[추가 설명]
+${description || "추가 설명 없음"}
+${instruction ? `\n[분석 재요청 지시사항]\n${instruction}\n` : ""}
+위 과제의 특성을 분석해 주세요.`,
+
+        CLASSIFY_SYS: `You are a Senior UX Research Screener. 실제 사용자 데이터(페르소나 원본 레코드)를 과제 기준으로 평가하고, 아래 네 가지 인터뷰 후보 유형 중 하나로 분류합니다.
+
+[유형 정의]
+${ARCHETYPES.map((a, i) => `${i + 1}. ${a.key} — ${a.name}: ${a.guide}`).join("\n")}
+
+[STRICT RULE]
+- 반드시 제공된 데이터에 실제로 적혀 있는 내용만 근거로 삼고, 이름·직업·경험을 새로 지어내지 마세요.
+- personaId는 제공된 값을 글자 하나도 바꾸지 말고 그대로 돌려주세요.
+- archetype 값은 반드시 general, lead, extreme, desire 중 하나여야 합니다.
+- reason은 한국어 존댓말 한 문장(80자 이내)으로, 왜 그 유형이며 과제와 어떻게 연결되는지 적어 주세요.
+- 근거가 데이터에 없으면 reason에 "데이터에서 직접 확인되지 않음"이라고 적어 주세요.
+[FORMAT] Return exactly this JSON:
+{"items":[{"personaId":"원본 값 그대로","archetype":"general|lead|extreme|desire","archetypeFit":0,"interviewValue":0,"reason":"한 문장"}]}`,
+
+        CLASSIFY_USER: (analysis, personas) => `[과제 특성 분석 결과]
+${JSON.stringify(analysis)}
+
+[평가할 실제 사용자 데이터]
+${JSON.stringify(personas)}
+
+각 사용자를 유형 분류하고, archetypeFit(해당 유형에 얼마나 부합하는지 0~100)과 interviewValue(이 과제 인터뷰에서 얻을 인사이트 가치 0~100)를 매겨 주세요.`,
+
+        PROFILE_SYS: `You are a Senior UX/User Researcher. 실제 사용자 데이터베이스에서 선정된 인터뷰 후보의 원본 레코드를 읽고, 리서치 팀이 바로 사용할 수 있는 타겟 프로필로 정리합니다.
+
+[STRICT RULE]
+- 반드시 제공된 원본 데이터에 근거해 작성하고, 데이터에 없는 이름·나이·직업·가족 구성·제품 보유·경험을 새로 지어내지 마세요.
+- 이름은 반드시 "콘텐츠 유목민: 30대 김민준"처럼 [수식어]: [연령/직업] [이름] 형식으로 작성해 주세요. 수식어는 원본 데이터에서 드러난 특징으로 만들고, 연령·직업·이름은 원본 데이터의 값을 사용해 주세요. 원본에 이름이 없으면 데이터에 나타난 호칭이나 직업 기반 표현을 사용하고 새 이름을 만들지 마세요.
+- "description"은 2줄 이상으로, 이 사람의 생활 맥락과 과제와 연결되는 실제 경험을 서술해 주세요.
+- "needs"는 2줄 이상으로, 원본 데이터에서 확인되는 목표·불편·기대를 구체적으로 서술해 주세요.
+- personaId는 제공된 값을 그대로 돌려주세요.
+- 모든 문장은 전문적이고 명확한 한국어 존댓말을 사용해 주세요.
+[FORMAT] Return exactly this JSON:
+{"personas":[{"personaId":"원본 값 그대로","name":"[수식어]: [연령/직업] [이름]","description":"2줄 이상 설명","needs":"2줄 이상 니즈"}]}`,
+
+        PROFILE_USER: (topic, analysis, archetype, personas) => `[리서치 주제]
+${topic}
+
+[과제 특성 분석 결과]
+${JSON.stringify(analysis)}
+
+[이번 카테고리]
+${archetype.name} — ${archetype.desc}
+
+[원본 사용자 데이터]
+${JSON.stringify(personas)}
+
+위 사람들을 이 카테고리의 인터뷰 타겟 프로필로 정리해 주세요.`
+      };
+
+      /* ---------- 값 정규화 ---------- */
+      const NEMO_EMPTY = "데이터에서 직접 확인되지 않음";
+
+      function nemoText(v) {
+        if (v === null || v === undefined || v === "") return NEMO_EMPTY;
+        if (Array.isArray(v)) return v.map(nemoText).join(", ");
+        if (typeof v === "object") return Object.values(v).map(nemoText).join(", ");
+        return String(v);
+      }
+      function nemoNorm(v) {
+        return nemoText(v).normalize("NFKC").split(NEMO_EMPTY).join("").replace(/\s+/g, " ").trim().toLowerCase();
+      }
+      function nemoArr(v) {
+        if (Array.isArray(v)) return v.flatMap(nemoArr);
+        if (v && typeof v === "object") return Object.values(v).flatMap(nemoArr);
+        return v === null || v === undefined || v === "" ? [] : [String(v)];
+      }
+      const nemoUniq = (list) => [...new Set(list.filter(Boolean))];
+      function nemoNum(v, fb) {
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : fb;
+      }
+      function nemoCut(v, len) {
+        const t = nemoText(v).replace(/\s+/g, " ").trim();
+        return t.length > len ? t.slice(0, len - 1) + "…" : t;
+      }
+
+      const NEMO_HIGH_FIELDS = ["페르소나 요약", "직업 페르소나", "기술 및 전문성", "취미 및 관심사", "경력 목표", "제품 및 서비스", "생활 맥락", "불편 사항", "니즈", "Persona Summary", "Skills And Expertise List", "Hobbies And Interests List", "Goals And Aspirations", "Products And Services", "Pain Points", "Needs"];
+      const NEMO_ID_FIELDS = ["이름", "성명", "실명", "Persona Name", "Full Name", "Name", "First Name", "Last Name", "직업", "직업 페르소나", "Occupation", "나이", "연령", "Age", "성별", "Gender", "시도/주", "지역", "Location"];
+
+      const nemoRowId = (row) => String(row["고유ID"] ?? row["Persona ID"] ?? row.personaId ?? row.__index);
+
+      function nemoField(row, candidates) {
+        const keys = Object.keys(row || {}).filter(k => !k.startsWith("__"));
+        for (const c of candidates) {
+          const target = nemoNorm(c);
+          const hit = keys.find(k => nemoNorm(k) === target);
+          if (hit && String(row[hit] ?? "").trim()) return hit;
+        }
+        return "";
+      }
+      function nemoSummary(row) {
+        const f = nemoField(row, ["페르소나 요약", "Persona Summary", "persona_summary", "PersonaSummary", "페르소나 프로필", "Persona Profile"]);
+        return f ? nemoText(row[f]).replace(/\s+/g, " ").trim() : "";
+      }
+      function nemoValidName(value, row) {
+        const c = String(value ?? "").replace(/^[\s"'“”‘’[\](){}]+|[\s"'“”‘’[\](){}.,;:]+$/g, "").replace(/\s+/g, " ").trim();
+        if (!c || c.length < 2 || c.length > 30 || c.split(" ").length > 4) return "";
+        const generic = ["페르소나", "persona", "사용자", "고객", "이름", "성명", "남성", "여성", "무직", "직장인", "학생", "주부", "은퇴자", NEMO_EMPTY];
+        if (generic.includes(c.toLowerCase())) return "";
+        const jf = nemoField(row, ["직업", "직업 페르소나", "Occupation"]);
+        if (jf && nemoNorm(c) === nemoNorm(row[jf])) return "";
+        return /^[가-힣·]{2,8}$/.test(c) || /^[A-Za-z][A-Za-z .'-]{1,29}$/.test(c) ? c : "";
+      }
+      function nemoNameFromSummary(row) {
+        const s = nemoSummary(row);
+        if (!s) return "";
+        const patterns = [
+          /(?:^|[,{\s])(?:이름|성명|실명|name|full name)\s*["'”’]?\s*(?:은|는|[:：=\-])\s*["'“‘]?([가-힣·]{2,8}?)(?=\s*(?:입니다|이다|이며|이고|은|는|의|씨|님|["'”’),.;:·}\]]|$))/i,
+          /(?:^|[,{\s])(?:이름|성명|실명|name|full name)\s*["'”’]?\s*(?:은|는|[:：=\-])\s*["'“‘]?([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){0,3})(?=\s*(?:["'”’),.;:·}\]]|$))/,
+          /^\s*[#*\-]*\s*["'“‘]?([가-힣·]{2,8})["'”’]?\s*(?:씨|님)?(?:은|는|의)\s*/,
+          /^\s*[#*\-]*\s*["'“‘]?([가-힣·]{2,8})["'”’]?\s*(?=[(（,·/]\s*(?:만\s*)?\d{1,3}\s*세)/
+        ];
+        for (const p of patterns) {
+          const m = s.match(p);
+          const name = nemoValidName(m && m[1], row);
+          if (name) return name;
+        }
+        return "";
+      }
+      function nemoPersonaName(row) {
+        const direct = nemoField(row, ["이름", "성명", "실명", "Persona Name", "Full Name", "name", "full_name", "persona_name"]);
+        if (direct) {
+          const v = nemoValidName(row[direct], row);
+          if (v) return v;
+        }
+        const ff = nemoField(row, ["First Name", "first_name"]);
+        const lf = nemoField(row, ["Last Name", "last_name"]);
+        const combined = [ff ? row[ff] : "", lf ? row[lf] : ""].map(v => String(v ?? "").trim()).filter(Boolean).join(" ");
+        if (nemoValidName(combined, row)) return combined;
+        return nemoNameFromSummary(row) || "이름 확인 필요";
+      }
+      function nemoMetaLine(row) {
+        const get = (list) => { const f = nemoField(row, list); return f ? nemoCut(row[f], 24) : ""; };
+        return [get(["직업", "직업 페르소나", "Occupation"]), get(["나이", "연령", "Age"]), get(["성별", "Gender"]), get(["시도/주", "지역", "Location"])].filter(Boolean).join(" · ");
+      }
+      function nemoEvidence(row, fields) {
+        const picked = [];
+        const order = [...fields.filter(f => NEMO_HIGH_FIELDS.some(h => nemoNorm(f).includes(nemoNorm(h)))), ...fields];
+        for (const f of order) {
+          if (picked.some(p => p.field === f)) continue;
+          const v = String(row[f] ?? "").trim();
+          if (!v) continue;
+          picked.push({ field: f, value: nemoCut(v, 170) });
+          if (picked.length >= 3) break;
+        }
+        return picked;
+      }
+
+      /* ---------- 파일 파싱 (XLSX / XLS / CSV) ---------- */
+      function nemoUniqueHeaders(values) {
+        const used = new Map();
+        return (values || []).map((v, i) => {
+          const base = String(v ?? "").trim() || `컬럼_${i + 1}`;
+          const n = (used.get(base) || 0) + 1;
+          used.set(base, n);
+          return n === 1 ? base : `${base}_${n}`;
+        });
+      }
+      async function nemoParseFile(file) {
+        const ext = (file.name.split(".").pop() || "").toLowerCase();
+        if (!["xlsx", "xls", "csv"].includes(ext)) throw new Error("XLSX, XLS 또는 CSV 파일만 업로드할 수 있습니다.");
+        if (file.size > CONFIG.NEMO.MAX_FILE_BYTES) throw new Error("파일이 50MB를 초과합니다. 데이터를 나누어 올려 주세요.");
+        if (typeof XLSX === "undefined") throw new Error("표 처리 모듈을 불러오지 못했습니다. 인터넷 연결 후 새로고침해 주세요.");
+        const wb = ext === "csv"
+          ? XLSX.read(await file.text(), { type: "string", codepage: 65001, cellDates: true })
+          : XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+        if (!wb.SheetNames.length) throw new Error("Sheet가 없는 파일입니다.");
+        const sheetName = wb.SheetNames.includes("stage1_candidates")
+          ? "stage1_candidates"
+          : (wb.SheetNames.find(n => n.toLowerCase() !== "meta") || wb.SheetNames[0]);
+        const ws = wb.Sheets[sheetName];
+        const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false });
+        if (!matrix.length || !matrix[0] || !matrix[0].length) throw new Error("첫 행에서 컬럼명을 찾지 못했습니다.");
+        const headers = nemoUniqueHeaders(matrix[0]);
+        const rows = XLSX.utils.sheet_to_json(ws, { header: headers, range: 1, defval: "", raw: false })
+          .filter(r => headers.some(f => String(r[f] ?? "").trim() !== ""))
+          .map((r, i) => ({ ...r, __index: i + 2 }));
+        if (!rows.length) throw new Error("검색할 사용자 행이 없습니다. 컬럼명 아래에 데이터를 넣어 주세요.");
+        return { headers, rows, sheetName };
+      }
+
+      /* ---------- 로컬 1차 검색 ---------- */
+      function nemoLocalCandidates() {
+        const a = state.taskAnalysis || {};
+        const sources = [a.keywords, a.expandedKeywords, a.bilingualTerms, a.importantContexts, a.importantBehaviors, a.occupations, a.personaTypes, a.productsAndServices, a.lifeContexts, a.painPoints, a.needs, state.researchTopic, state.taskDescription];
+        const terms = nemoUniq(sources.flatMap(nemoArr).flatMap(v => nemoNorm(v).split(/[^\p{L}\p{N}]+/u)).filter(v => v.length > 1));
+        const priority = nemoArr(a.priorityFields).map(nemoNorm);
+        const scored = state.nemoRows.map(row => {
+          let raw = 0;
+          state.nemoFields.forEach(field => {
+            const nf = nemoNorm(field);
+            let weight = NEMO_HIGH_FIELDS.some(h => nf.includes(nemoNorm(h))) ? 2.2 : 1;
+            if (priority.some(p => p && nf.includes(p))) weight += 2.5;
+            const cell = nemoNorm(row[field]);
+            if (!cell) return;
+            raw += terms.reduce((sum, t) => sum + (cell.includes(t) ? 1 : 0), 0) * weight;
+          });
+          return { ...row, __rawScore: raw };
+        }).sort((x, y) => y.__rawScore - x.__rawScore);
+        const max = scored.length ? scored[0].__rawScore : 0;
+        return scored.slice(0, Math.min(CONFIG.NEMO.LOCAL_CANDIDATES, scored.length))
+          .map((row, i) => ({ ...row, localScore: max ? Math.round(row.__rawScore / max * 100) : Math.max(1, 100 - i) }));
+      }
+      function nemoRelevantFields() {
+        const a = state.taskAnalysis || {};
+        const priority = nemoArr(a.priorityFields).map(nemoNorm);
+        const terms = nemoUniq([a.keywords, a.expandedKeywords, a.bilingualTerms].flatMap(nemoArr).map(nemoNorm));
+        const ranked = state.nemoFields.filter(f => !f.startsWith("__")).map((field, index) => {
+          const v = nemoNorm(field);
+          let score = 0;
+          if (NEMO_ID_FIELDS.some(x => v === nemoNorm(x))) score += 100;
+          if (NEMO_HIGH_FIELDS.some(x => v.includes(nemoNorm(x)) || nemoNorm(x).includes(v))) score += 80;
+          if (priority.some(x => x && (v.includes(x) || x.includes(v)))) score += 60;
+          if (terms.some(x => x && (v.includes(x) || x.includes(v)))) score += 25;
+          return { field, index, score };
+        }).sort((x, y) => y.score - x.score || x.index - y.index);
+        const selected = ranked.filter(r => r.score > 0).slice(0, 14).map(r => r.field);
+        if (selected.length < 8) ranked.filter(r => !selected.includes(r.field)).slice(0, 8 - selected.length).forEach(r => selected.push(r.field));
+        return selected;
+      }
+      function nemoPayload(row, fields, cut) {
+        return Object.fromEntries(fields.map(f => [f, nemoCut(row[f], cut || 320)]));
+      }
+
+      /* ---------- 응답 정규화 ---------- */
+      function normTaskAnalysis(res) {
+        const src = res && typeof res === "object" && !Array.isArray(res) ? (res.analysis && typeof res.analysis === "object" ? res.analysis : res) : {};
+        const out = { researchIntent: str(src.researchIntent, "") };
+        ["importantContexts", "importantBehaviors", "personaTypes", "productsAndServices", "lifeContexts", "painPoints", "needs", "keywords", "expandedKeywords", "bilingualTerms", "priorityFields", "occupations"]
+          .forEach(k => { out[k] = nemoUniq(nemoArr(src[k]).map(v => v.trim())).slice(0, 30); });
+        if (!out.researchIntent && !out.keywords.length) throw new Error("과제 특성 분석 결과를 해석하지 못했습니다. 다시 시도해 주세요.");
+        return out;
+      }
+      function normNemoEvals(res) {
+        const list = Array.isArray(res) ? res : (res && Array.isArray(res.items) ? res.items : (res && Array.isArray(res.evaluations) ? res.evaluations : []));
+        const seen = new Set();
+        return list.filter(x => x && typeof x === "object").map(x => {
+          const id = String(x.personaId ?? "");
+          if (!id || seen.has(id)) return null;
+          seen.add(id);
+          const key = ARCHETYPES.some(a => a.key === x.archetype) ? x.archetype : "general";
+          return { id, key, fit: nemoNum(x.archetypeFit, 50), value: nemoNum(x.interviewValue, 50), reason: str(x.reason, "") };
+        }).filter(Boolean);
+      }
+      function normNemoProfiles(res) {
+        const list = Array.isArray(res) ? res : (res && Array.isArray(res.personas) ? res.personas : []);
+        const map = Object.create(null);
+        list.filter(x => x && typeof x === "object").forEach(x => {
+          const id = String(x.personaId ?? "");
+          if (!id) return;
+          map[id] = { name: str(x.name, ""), description: str(x.description, ""), needs: str(x.needs, "") };
+        });
+        return map;
+      }
+      function nemoFallbackProfile(row, archetype) {
+        const name = nemoPersonaName(row);
+        const meta = nemoMetaLine(row) || "정보 미상";
+        const summary = nemoSummary(row);
+        return {
+          name: `${archetype.short}: ${meta.split(" · ").slice(0, 2).join(" ") || "정보 미상"} ${name}`.trim(),
+          description: summary || `원본 데이터에 기록된 ${meta} 사용자입니다. 세부 설명은 원본 데이터에서 직접 확인해 주세요.`,
+          needs: `원본 데이터에서 확인된 맥락(${meta})을 기준으로 인터뷰에서 니즈를 직접 확인해야 합니다.`
+        };
+      }
+
+      /* ---------- 후보 배정 ---------- */
+      function nemoAssign(pool, evals) {
+        const byId = new Map(pool.map(r => [nemoRowId(r), r]));
+        const scored = [];
+        evals.forEach(e => {
+          const row = byId.get(e.id);
+          if (!row) return;
+          scored.push({
+            id: e.id, row, key: e.key, reason: e.reason,
+            score: Math.round((row.localScore || 0) * 0.35 + (e.fit * 0.45 + e.value * 0.55) * 0.65)
+          });
+        });
+        scored.sort((x, y) => y.score - x.score);
+
+        const per = CONFIG.NEMO.PER_CATEGORY;
+        const used = new Set();
+        const picks = Object.create(null);
+        ARCHETYPES.forEach(a => {
+          picks[a.key] = scored.filter(s => s.key === a.key && !used.has(s.id)).slice(0, per);
+          picks[a.key].forEach(s => used.add(s.id));
+        });
+        const spare = scored.filter(s => !used.has(s.id));
+        const rest = pool.filter(r => !used.has(nemoRowId(r)) && !scored.some(s => s.id === nemoRowId(r)));
+        ARCHETYPES.forEach(a => {
+          while (picks[a.key].length < per) {
+            let next = spare.shift();
+            if (!next) {
+              const row = rest.shift();
+              if (!row) break;
+              next = { id: nemoRowId(row), row, key: a.key, reason: "", score: row.localScore || 0 };
+            }
+            used.add(next.id);
+            picks[a.key].push({ ...next, key: a.key, borrowed: true });
+          }
+        });
+        return { picks, scored };
+      }
+
+      /* =========================================================
+         3. 유틸 — 이스케이프 / 토스트 / ID
+         ========================================================= */
+      function esc(v) {
+        if (v === null || v === undefined) return "";
+        return String(v)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+      }
+      const escAttr = esc;
+
+      function toast(msg, tone) {
+        const live = document.getElementById("toast-region");
+        if (live) live.textContent = msg;
+        const colors = { ok: "bg-slate-900", warn: "bg-amber-600", error: "bg-red-600", info: "bg-blue-700" };
+        const el = document.createElement("div");
+        el.textContent = msg;
+        el.className = `fixed left-1/2 -translate-x-1/2 ${colors[tone] || colors.ok} text-white px-6 py-3.5 rounded-2xl font-bold z-[10001] animate-fade-in shadow-2xl max-w-[90vw] text-center t-small`;
+        el.style.bottom = "calc(96px + env(safe-area-inset-bottom))";
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 2800);
+      }
+
+      // 같은 밀리초에 두 번 호출해도 충돌하지 않는 ID (기존 'm'+Date.now() 충돌 문제 해결)
+      let seq = 0;
+      const uid = (p) => `${p || "id"}_${Date.now().toString(36)}_${(seq++).toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+
+      const nowLabel = (t) => new Date(t).toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+      /* =========================================================
+         4. 저장소 — 슬롯 방식(최대 5개) + 단계적 축소 + 예외 처리
+         기존: 단일 키에 5초마다 통째로 덮어쓰기 → 용량 초과 시 조용히 소멸
+         ========================================================= */
+      const Store = {
+        list() {
+          try {
+            const raw = localStorage.getItem(CONFIG.PROJECTS_KEY);
+            const arr = raw ? JSON.parse(raw) : [];
+            return Array.isArray(arr) ? arr : [];
+          } catch (e) {
+            console.warn("저장 목록을 읽지 못했습니다.", e);
+            return [];
+          }
+        },
+        _write(list) {
+          try { localStorage.setItem(CONFIG.PROJECTS_KEY, JSON.stringify(list)); return true; }
+          catch (e) { return false; }
+        },
+        save(snapshot, meta) {
+          let list = Store.list().filter(p => p.id !== meta.id);
+          list.unshift({ id: meta.id, title: meta.title, savedAt: Date.now(), data: snapshot });
+          if (list.length > CONFIG.MAX_PROJECTS) list = list.slice(0, CONFIG.MAX_PROJECTS);
+
+          if (Store._write(list)) return { ok: true };
+
+          // 1차 축소: 분기 탐색 기록(branches)을 비워 재시도
+          const trimmed = list.map(p => ({
+            ...p,
+            data: { ...p.data, sessions: (p.data.sessions || []).map(s => ({ ...s, branches: [] })) }
+          }));
+          if (Store._write(trimmed)) return { ok: true, pruned: "branches" };
+
+          // 2차 축소: 가장 오래된 프로젝트를 버리고 재시도
+          const reduced = trimmed.slice(0, Math.max(1, trimmed.length - 1));
+          if (Store._write(reduced)) return { ok: true, pruned: "oldest" };
+
+          return { ok: false };
+        },
+        remove(id) { return Store._write(Store.list().filter(p => p.id !== id)); }
+      };
+
+      /* =========================================================
+         5. STATE
+         ========================================================= */
+      function blankProject() {
+        return {
+          projectId: uid("proj"),
+          researchTopic: "",
+          categories: [],          // [{id, name, desc, personas:[{id,name,description,needs}]}]
+          manualPersonas: [],      // [{id,name,description,needs}]
+          selectedPersonaId: null,
+          surveys: [],             // [{id,title,source,questions:[{id,text}]}]
+          selectedQuestionIds: [],
+          sessions: [],
+          activeSessionId: null,
+          expanded: {},
+          // --- 네모트론 확장 (저장됨) ---
+          personaSource: "ai",     // "ai" | "nemotron"
+          taskDescription: "",
+          taskAnalysis: null,
+          nemoFileName: "",
+          nemoSheetName: "",
+          nemoRowCount: 0,
+          // --- 네모트론 확장 (메모리 전용 · 저장 제외) ---
+          nemoRows: [],
+          nemoFields: [],
+          nemoPool: [],
+          nemoHandle: null,
+          nemoPending: null
+        };
+      }
+
+      function blankSession(persona) {
+        return {
+          id: uid("sess"),
+          createdAt: Date.now(),
+          // 페르소나 정보를 세션에 '복사'해 둔다.
+          // 기존 버그: personaId 참조만 저장 → 페르소나 재생성 시 id가 바뀌며 리포트에 '미지정'으로 표시됨
+          personaId: persona.id,
+          personaName: persona.name,
+          personaDescription: persona.description,
+          personaNeeds: persona.needs,
+          questions: [],
+          summary: "",
+          qaPairs: [],             // [{id,q,a,followUp?}]
+          keyInsights: "",
+          selectedQaIds: [],       // 인덱스가 아닌 ID로 저장 → 항목 추가/수정에도 선택이 밀리지 않음
+          userInsight: "",
+          inferencePerspective: PERSPECTIVES[0],
+          inferences: [],
+          selectedInferenceId: null,
+          conceptPerspective: PERSPECTIVES[0],
+          concepts: [],
+          selectedConceptId: null,
+          scenario: "",
+          branches: []
+        };
+      }
+
+      let state = {
+        apiKey: sessionStorage.getItem(CONFIG.SESSION_KEY_API) || "",
+        step: -1,
+        isAnalyzing: false,
+        loadingMsg: "",
+        errorMsg: null,
+        editingQuestionId: null,
+        ...blankProject()
+      };
+
+      // 입력 중인 값은 state가 아니라 drafts에 보관 → 타이핑마다 재렌더되지 않고, 재렌더에도 내용이 살아남음
+      const drafts = Object.create(null);
+      window.setDraft = (id, v) => { drafts[id] = v; };
+      const draft = (id) => (id in drafts ? drafts[id] : "");
+      const draftOr = (id, fallback) => (id in drafts ? drafts[id] : (fallback || ""));
+      const clearDrafts = (...ids) => ids.forEach(id => { delete drafts[id]; });
+
+      function setState(patch) {
+        const prevStep = state.step;
+        state = { ...state, ...patch };
+        window.__state = state;
+        render(patch.step !== undefined && patch.step !== prevStep);
+      }
+      window.setState = setState;
+      window.__state = state;
+
+      /* =========================================================
+         6. 세션 헬퍼
+         ========================================================= */
+      function activeSession() {
+        return state.sessions.find(s => s.id === state.activeSessionId) || null;
+      }
+      function updateSession(patch, extra) {
+        const id = state.activeSessionId;
+        const sessions = state.sessions.map(s => (s.id === id ? { ...s, ...patch } : s));
+        setState({ sessions, ...(extra || {}) });
+      }
+      function allPersonas() {
+        const fromCats = state.categories.flatMap(c => (c.personas || []).map(p => ({ ...p, categoryName: c.name })));
+        return [...fromCats, ...state.manualPersonas.map(p => ({ ...p, categoryName: "사용자 직접 추가" }))];
+      }
+      function findPersona(id) {
+        return allPersonas().find(p => p.id === id) || null;
+      }
+      function allQuestions() {
+        return state.surveys.flatMap(s => s.questions.map(q => ({ ...q, surveyId: s.id, surveyTitle: s.title })));
+      }
+      function selectedQuestions() {
+        return allQuestions().filter(q => state.selectedQuestionIds.includes(q.id));
+      }
+
+      // 상위 단계를 다시 실행하면 하위 산출물을 반드시 폐기한다.
+      // 기존 버그: 새 타겟을 인터뷰해도 이전 타겟의 추론/컨셉/시나리오가 화면에 그대로 남았음
+      function archiveBranch(s, reason, keepInferences) {
+        const entry = {
+          reason,
+          at: Date.now(),
+          inferencePerspective: s.inferencePerspective,
+          inferences: keepInferences ? s.inferences : [],
+          selectedInferenceTitle: (s.inferences.find(i => i.id === s.selectedInferenceId) || {}).title || "",
+          conceptPerspective: s.conceptPerspective,
+          concepts: s.concepts,
+          selectedConceptTitle: (s.concepts.find(c => c.id === s.selectedConceptId) || {}).title || "",
+          scenario: s.scenario
+        };
+        if (!entry.inferences.length && !entry.concepts.length && !entry.scenario) return s.branches;
+        return [...s.branches, entry];
+      }
+
+      /* =========================================================
+         7. AI 호출 — 취소 / 파싱 방어 / 치명적 오류 즉시 중단
+         ========================================================= */
+      let activeController = null;
+
+      function parseModelJson(text) {
+        let t = String(text).trim();
+        t = t.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+        try { return JSON.parse(t); } catch (e) { /* 아래에서 구간 추출 재시도 */ }
+        const candidates = [t.indexOf("{"), t.indexOf("[")].filter(i => i >= 0);
+        const first = candidates.length ? Math.min(...candidates) : -1;
+        const last = Math.max(t.lastIndexOf("}"), t.lastIndexOf("]"));
+        if (first >= 0 && last > first) {
+          try { return JSON.parse(t.slice(first, last + 1)); } catch (e) { /* fallthrough */ }
+        }
+        throw new Error("AI 응답을 JSON으로 해석하지 못했습니다. 다시 시도해 주세요.");
+      }
+
+      async function callGemini(systemPrompt, userPrompt) {
+        const controller = new AbortController();
+        activeController = controller;
+        const delays = [900, 2200, 5000];
+        let lastError = "알 수 없는 오류가 발생했습니다.";
+
+        for (let i = 0; i <= delays.length; i++) {
+          try {
+            const res = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${CONFIG.MODEL_NAME}:generateContent?key=${encodeURIComponent(state.apiKey || "")}`,
+              {
+                method: "POST",
+                signal: controller.signal,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: userPrompt }] }],
+                  systemInstruction: { parts: [{ text: systemPrompt }] },
+                  generationConfig: { responseMimeType: "application/json", temperature: 0.7, maxOutputTokens: 8192 },
+                  safetySettings: [
+                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                  ]
+                })
+              }
+            );
+
+            if (!res.ok) {
+              const err = new Error(
+                res.status === 400 || res.status === 403 ? "API 키가 유효하지 않거나 권한이 없습니다."
+                : res.status === 429 ? "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."
+                : `요청이 거부되었습니다 (상태 ${res.status}).`
+              );
+              err.fatal = [400, 401, 403, 404].includes(res.status);
+              throw err;
+            }
+
+            const data = await res.json();
+            const cand = data && data.candidates && data.candidates[0];
+            if (cand && cand.finishReason === "MAX_TOKENS") {
+              throw new Error("응답이 최대 길이에 도달해 잘렸습니다. 선택한 항목을 줄이고 다시 시도해 주세요.");
+            }
+            const text = cand && cand.content && cand.content.parts && cand.content.parts[0] && cand.content.parts[0].text;
+            if (!text) throw new Error("AI가 빈 응답을 반환했습니다.");
+            return parseModelJson(text);
+
+          } catch (err) {
+            if (err.name === "AbortError") { const e = new Error("__aborted__"); e.aborted = true; throw e; }
+            lastError = err.message;
+            if (err.fatal || i === delays.length) break;
+            await new Promise(r => setTimeout(r, delays[i]));
+          }
+        }
+        throw new Error(lastError);
+      }
+
+      // 로딩 상태 + 오류 처리를 한 곳에서 담당 (기존: errorMsg를 세팅해도 화면에 표시되지 않았음)
+      async function withLoading(msg, fn) {
+        setState({ isAnalyzing: true, loadingMsg: msg, errorMsg: null });
+        try {
+          const out = await fn();
+          setState({ isAnalyzing: false });
+          return out;
+        } catch (err) {
+          if (err && err.aborted) { setState({ isAnalyzing: false }); toast("분석을 취소했습니다.", "info"); return null; }
+          console.error(err);
+          setState({ isAnalyzing: false, errorMsg: err.message || "분석에 실패했습니다." });
+          return null;
+        } finally {
+          activeController = null;
+        }
+      }
+
+      /* =========================================================
+         8. 응답 정규화 — 필드 누락으로 렌더가 죽지 않도록 방어
+         ========================================================= */
+      const str = (v, fb) => (typeof v === "string" && v.trim() ? v.trim() : (fb === undefined ? NO_DATA : fb));
+
+      function normCategories(res) {
+        let list = res && Array.isArray(res.categories) ? res.categories : (Array.isArray(res) ? res : []);
+        list = list.filter(c => c && typeof c === "object").map(c => ({
+          id: uid("cat"),
+          name: str(c.categoryName || c.name, "이름 없는 카테고리"),
+          desc: str(c.categoryDesc || c.desc, ""),
+          personas: (Array.isArray(c.personas) ? c.personas : []).filter(p => p && typeof p === "object").map(p => ({
+            id: uid("psn"),
+            name: str(p.name, "이름 없는 타겟"),
+            description: str(p.description),
+            needs: str(p.needs)
+          }))
+        })).filter(c => c.personas.length);
+        if (!list.length) throw new Error("타겟 페르소나를 생성하지 못했습니다. 다시 시도해 주세요.");
+        return list;
+      }
+
+      function normPersona(res) {
+        const p = (res && res.persona) || res || {};
+        if (!p || typeof p !== "object" || !p.name) throw new Error("새 페르소나를 생성하지 못했습니다. 다시 시도해 주세요.");
+        return { name: str(p.name, "이름 없는 타겟"), description: str(p.description), needs: str(p.needs) };
+      }
+
+      function normSurveys(res) {
+        let list = res && Array.isArray(res.surveys) ? res.surveys : (Array.isArray(res) ? res : []);
+        list = list.filter(s => s && typeof s === "object").map(s => ({
+          id: uid("sv"),
+          source: "ai",
+          title: str(s.title, "인터뷰 질문"),
+          questions: (Array.isArray(s.questions) ? s.questions : [])
+            .map(q => (typeof q === "string" ? q : (q && q.text)))
+            .filter(q => typeof q === "string" && q.trim())
+            .map(q => ({ id: uid("q"), text: q.trim() }))
+        })).filter(s => s.questions.length);
+        if (!list.length) throw new Error("인터뷰 질문을 생성하지 못했습니다. 다시 시도해 주세요.");
+        return list;
+      }
+
+      function normInterview(res, askedQuestions) {
+        const raw = res && Array.isArray(res.qaPairs) ? res.qaPairs : [];
+        const pairs = raw.filter(x => x && typeof x === "object").map((x, i) => ({
+          id: uid("qa"),
+          q: str(x.q || x.question, askedQuestions[i] || "질문 원문을 확인할 수 없습니다."),
+          a: str(x.a || x.answer)
+        }));
+        if (!pairs.length) throw new Error("인터뷰 답변을 생성하지 못했습니다. 다시 시도해 주세요.");
+        // AI가 일부 질문을 누락했을 때, 빠진 질문을 빈 답변으로라도 보존
+        askedQuestions.slice(pairs.length).forEach(q => {
+          pairs.push({ id: uid("qa"), q, a: NO_DATA });
+        });
+        return {
+          summary: str(res.summary, ""),
+          qaPairs: pairs,
+          keyInsights: str(res.keyInsights, "")
+        };
+      }
+
+      function normFollowUp(res, question) {
+        const o = res && typeof res === "object" ? res : {};
+        const a = str(o.a || o.answer, "");
+        if (!a) throw new Error("추가 질문에 대한 답변을 받지 못했습니다. 다시 시도해 주세요.");
+        return { id: uid("qa"), q: str(o.q || question, question), a, followUp: true };
+      }
+
+      function normInferences(res) {
+        let list = res && Array.isArray(res.inferences) ? res.inferences : (Array.isArray(res) ? res : []);
+        list = list.filter(x => x && typeof x === "object").map(x => ({
+          id: uid("inf"),
+          title: str(x.title, "제목 없는 추론"),
+          description: str(x.description)
+        }));
+        if (!list.length) throw new Error("핵심 가치 추론을 생성하지 못했습니다. 다시 시도해 주세요.");
+        return list;
+      }
+
+      function normConcepts(res) {
+        let list = res && Array.isArray(res.concepts) ? res.concepts : (Array.isArray(res) ? res : []);
+        list = list.filter(x => x && typeof x === "object").map(x => ({
+          id: uid("con"),
+          title: str(x.title, "제목 없는 컨셉"),
+          coreValue: typeof x.coreValue === "string" ? str(x.coreValue)
+            : (x.coreValue && typeof x.coreValue === "object" ? Object.values(x.coreValue).filter(Boolean).join("\n") : NO_DATA),
+          description: str(x.description)
+        }));
+        if (!list.length) throw new Error("디자인 컨셉을 생성하지 못했습니다. 다시 시도해 주세요.");
+        return list;
+      }
+
+      function normScenario(res) {
+        const s = res && typeof res === "object" ? (res.scenario || res.text) : res;
+        const out = str(s, "");
+        if (!out) throw new Error("컨셉 시나리오를 생성하지 못했습니다. 다시 시도해 주세요.");
+        return out;
+      }
+
+      /* =========================================================
+         9. 구버전 데이터 이전 (research_lab_projects_vNN)
+         기존: 새 키로 복사만 하고 옛 키를 남겨 용량을 두 배로 점유
+         ========================================================= */
+      function migrateLegacy() {
+        try {
+          if (localStorage.getItem(CONFIG.MIGRATION_FLAG)) return 0;
+          const oldKeys = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && CONFIG.LEGACY_PATTERN.test(k)) oldKeys.push(k);
+          }
+          localStorage.setItem(CONFIG.MIGRATION_FLAG, "1");
+          if (!oldKeys.length) return 0;
+
+          oldKeys.sort((a, b) => parseInt(b.match(CONFIG.LEGACY_PATTERN)[1], 10) - parseInt(a.match(CONFIG.LEGACY_PATTERN)[1], 10));
+          let imported = 0;
+          const existing = Store.list();
+
+          for (const key of oldKeys) {
+            let map = {};
+            try { map = JSON.parse(localStorage.getItem(key)) || {}; } catch (e) { map = {}; }
+            Object.keys(map).forEach(id => {
+              if (existing.length + imported >= CONFIG.MAX_PROJECTS) return;
+              const rec = map[id];
+              if (!rec || !rec.data) return;
+              const converted = convertLegacyProject(rec.data);
+              if (!converted) return;
+              const list = Store.list();
+              list.push({ id: converted.projectId, title: rec.title || converted.researchTopic.slice(0, 40) || "이전 버전 프로젝트", savedAt: rec.updatedAt || Date.now(), data: converted });
+              Store._write(list.slice(0, CONFIG.MAX_PROJECTS));
+              imported++;
+            });
+          }
+          // 이전이 끝난 옛 키는 제거해 저장 공간을 회수
+          oldKeys.forEach(k => { try { localStorage.removeItem(k); } catch (e) { /* 무시 */ } });
+          return imported;
+        } catch (e) {
+          console.warn("구버전 데이터 이전 실패", e);
+          return 0;
+        }
+      }
+
+      function convertLegacyProject(d) {
+        try {
+          const p = blankProject();
+          p.researchTopic = typeof d.researchTopic === "string" ? d.researchTopic : "";
+          const idMap = Object.create(null);
+
+          p.categories = (Array.isArray(d.aiCategories) ? d.aiCategories : []).map(c => ({
+            id: uid("cat"),
+            name: str(c.categoryName, "카테고리"),
+            desc: str(c.categoryDesc, ""),
+            personas: (Array.isArray(c.personas) ? c.personas : []).map(x => {
+              const np = { id: uid("psn"), name: str(x.name, "이름 없는 타겟"), description: str(x.description), needs: str(x.needs) };
+              if (x.id) idMap[x.id] = np;
+              return np;
+            })
+          }));
+          p.manualPersonas = (Array.isArray(d.manualPersonas) ? d.manualPersonas : []).map(x => {
+            const np = { id: uid("psn"), name: str(x.name, "이름 없는 타겟"), description: str(x.description, ""), needs: str(x.needs, "") };
+            if (x.id) idMap[x.id] = np;
+            return np;
+          });
+
+          p.sessions = (Array.isArray(d.history) ? d.history : []).map(h => {
+            const src = idMap[h.personaId] || { id: uid("psn"), name: "이전 버전 타겟", description: "", needs: "" };
+            const s = blankSession(src);
+            const r = h.result || {};
+            s.summary = str(r.summary, "");
+            s.keyInsights = str(r.keyInsights, "");
+            s.qaPairs = (Array.isArray(r.qaPairs) ? r.qaPairs : []).map(qa => ({ id: uid("qa"), q: str(qa.q, ""), a: str(qa.a, "") }));
+            s.userInsight = typeof h.userInsight === "string" ? h.userInsight : "";
+            s.inferencePerspective = h.inferencePerspective || PERSPECTIVES[0];
+            s.inferences = (Array.isArray(h.inferences) ? h.inferences : []).map(i => ({ id: uid("inf"), title: str(i.title, ""), description: str(i.description, "") }));
+            s.conceptPerspective = h.perspective || PERSPECTIVES[0];
+            s.concepts = (Array.isArray(h.concepts) ? h.concepts : []).map(c => ({ id: uid("con"), title: str(c.title, ""), coreValue: str(c.coreValue, ""), description: str(c.description, "") }));
+            s.scenario = typeof h.scenario === "string" ? h.scenario : "";
+            return s;
+          });
+          if (p.sessions.length) p.activeSessionId = p.sessions[p.sessions.length - 1].id;
+          if (!p.researchTopic && !p.categories.length && !p.sessions.length) return null;
+          return p;
+        } catch (e) {
+          console.warn("프로젝트 변환 실패", e);
+          return null;
+        }
+      }
+
+      /* =========================================================
+         10. 단계 이동 규칙 — maxStepReached 대신 '데이터 준비 여부'로 판정
+         기존 버그: 한 번 도달한 단계 번호가 영구 저장되어, 다른 타겟으로
+         돌아간 뒤에도 앞으로가기로 이전 세션 결과를 볼 수 있었음
+         ========================================================= */
+      function stepReady(n) {
+        const s = activeSession();
+        switch (n) {
+          case 1: return true;
+          case 2: return state.categories.length > 0;
+          case 3: return state.categories.length > 0 || state.manualPersonas.length > 0;
+          case 4: return state.surveys.length > 0;
+          case 5: return state.selectedQuestionIds.length > 0;
+          case 6: return !!s && s.qaPairs.length > 0;
+          case 7: return !!s && s.qaPairs.length > 0;
+          case 8: return !!s && s.inferences.length > 0;
+          case 9: return !!s && s.concepts.length > 0;
+          case 10: return !!s && !!s.scenario;
+          default: return false;
+        }
+      }
+
+      function lastCompletedStep(d) {
+        const s = (d.sessions || []).find(x => x.id === d.activeSessionId) || (d.sessions || [])[d.sessions ? d.sessions.length - 1 : 0];
+        if (s) {
+          if (s.scenario) return 10;
+          if (s.concepts && s.concepts.length) return 9;
+          if (s.inferences && s.inferences.length) return 8;
+          if (s.qaPairs && s.qaPairs.length) return 7;
+        }
+        if ((d.surveys || []).length) return 4;
+        if ((d.categories || []).length) return 2;
+        return 1;
+      }
+
+      /* =========================================================
+         11. 자동 저장
+         기존 버그: step>0이면 무조건 저장 → 주제도 없는 빈 프로젝트가 계속 생성됨
+         ========================================================= */
+      let lastSaved = "";
+      let quotaWarned = false;
+
+      // 프로젝트를 새로 만들거나 열어도 메모리에 올라온 원본 데이터는 유지합니다.
+      function nemoCarry() {
+        if (!state.nemoRows.length) return {};
+        return {
+          nemoRows: state.nemoRows, nemoFields: state.nemoFields,
+          nemoFileName: state.nemoFileName, nemoSheetName: state.nemoSheetName,
+          nemoRowCount: state.nemoRowCount
+        };
+      }
+
+      function snapshot() {
+        // 원본 데이터(nemoRows/nemoFields/nemoPool)는 용량이 커서 저장하지 않습니다.
+        const { apiKey, step, isAnalyzing, loadingMsg, errorMsg, editingQuestionId, nemoRows, nemoFields, nemoPool, nemoHandle, nemoPending, ...data } = state;
+        return data;
+      }
+      function hasContent() {
+        return !!state.researchTopic.trim() || state.categories.length > 0 || state.sessions.length > 0;
+      }
+      function projectTitle() {
+        const t = state.researchTopic.trim();
+        if (t) return t.length > 40 ? t.slice(0, 40) + "…" : t;
+        return "제목 없는 프로젝트";
+      }
+      function persist(force) {
+        if (state.step < 1 || !hasContent()) return "skip";
+        const snap = snapshot();
+        const serialized = JSON.stringify(snap);
+        if (!force && serialized === lastSaved) return "skip";
+        const r = Store.save(snap, { id: state.projectId, title: projectTitle() });
+        if (r.ok) {
+          lastSaved = serialized;
+          if (r.pruned === "branches" && !quotaWarned) { quotaWarned = true; toast("공간 확보를 위해 분기 탐색 기록을 정리했습니다.", "warn"); }
+          if (r.pruned === "oldest" && !quotaWarned) { quotaWarned = true; toast("공간 확보를 위해 가장 오래된 프로젝트를 정리했습니다.", "warn"); }
+          return "ok";
+        }
+        if (!quotaWarned) { quotaWarned = true; toast("저장 공간이 부족해 자동 저장이 중단되었습니다. 리포트를 파일로 내려받아 주세요.", "error"); }
+        return "full";
+      }
+
+      /* =========================================================
+         12. 렌더 헬퍼
+         ========================================================= */
+      function header(title, backStep, nextOverride) {
+        const cur = STAGES.find(s => s.n === state.step);
+        const auto = state.step + 1;
+        const next = nextOverride === undefined ? auto : nextOverride;
+        const showNext = nextOverride === undefined ? (STAGES.some(s => s.n === auto) && stepReady(auto)) : true;
+        const pct = cur ? Math.round((cur.n / STAGES.length) * 100) : 0;
+        return `
+        <header class="fixed top-0 left-0 right-0 z-50 bg-white max-w-[430px] mx-auto">
+          <div class="px-3 h-14 flex items-center justify-between gap-1">
+            <div class="flex items-center gap-1 overflow-hidden flex-1 min-w-0">
+              ${backStep !== undefined ? `<button type="button" aria-label="이전 단계로" onclick="setState({step:${backStep}})" class="p-2.5 rounded-full hover:bg-slate-100 active:bg-slate-200 text-slate-700 flex-shrink-0"><i data-lucide="chevron-left" class="w-6 h-6"></i></button>` : ""}
+              <h1 class="t-h3 truncate text-slate-900">${esc(title)}</h1>
+            </div>
+            <div class="flex items-center gap-0.5 flex-shrink-0 text-slate-700">
+              ${showNext ? `<button type="button" aria-label="다음 단계로" onclick="setState({step:${next}})" class="p-2.5 rounded-full hover:bg-slate-100 active:bg-slate-200 text-slate-900"><i data-lucide="chevron-right" class="w-6 h-6"></i></button>` : ""}
+              <button type="button" aria-label="진행 상태 저장" onclick="Actions.saveNow()" class="p-2.5 rounded-full hover:bg-slate-100 active:bg-slate-200"><i data-lucide="save" class="w-6 h-6"></i></button>
+              <button type="button" aria-label="리포트 복사" onclick="Actions.copyReport()" class="p-2.5 rounded-full hover:bg-slate-100 active:bg-slate-200"><i data-lucide="copy" class="w-6 h-6"></i></button>
+              <button type="button" aria-label="처음 화면으로" onclick="Actions.goHome()" class="p-2.5 rounded-full hover:bg-slate-100 active:bg-slate-200"><i data-lucide="home" class="w-6 h-6"></i></button>
+            </div>
+          </div>
+          ${cur ? `<div class="px-4 pb-2 flex items-center gap-3">
+            <div class="h-2 bg-slate-300 rounded-full flex-1 overflow-hidden"><div class="h-full bg-blue-700 rounded-full transition-all" style="width:${pct}%"></div></div>
+            <span class="t-meta font-bold text-slate-600 tabular-nums flex-shrink-0">${cur.n} / ${STAGES.length} · ${esc(cur.label)}</span>
+          </div>` : ""}
+        </header>`;
+      }
+
+      function dock(inner) {
+        return `<div class="fixed bottom-0 left-0 right-0 px-5 pt-5 dock bg-white max-w-[430px] mx-auto z-[60]">${inner}</div>`;
+      }
+
+      function primaryBtn(label, onclick, disabled) {
+        return `<button type="button" ${disabled ? "disabled" : ""} onclick="${onclick}"
+          class="w-full py-5 rounded-2xl font-bold t-h3 text-white bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none shadow-lg active:scale-[0.98] disabled:active:scale-100 transition-all">${esc(label)}</button>`;
+      }
+
+      function secondaryBtn(label, onclick, icon) {
+        return `<button type="button" onclick="${onclick}"
+          class="w-full py-4 rounded-2xl font-bold t-small text-slate-700 bg-white border-2 border-slate-200 hover:bg-slate-50 active:scale-[0.98] transition-all flex items-center justify-center gap-2">${icon ? `<i data-lucide="${icon}" class="w-5 h-5"></i>` : ""}${esc(label)}</button>`;
+      }
+
+      function perspectiveRow(current, onclickFactory) {
+        return `<div class="grid grid-cols-2 gap-2 mb-3" role="group" aria-label="분석 관점 선택">
+          ${PERSPECTIVES.map(p => `<button type="button" onclick="${onclickFactory(p)}" aria-pressed="${current === p}"
+            class="py-3 rounded-xl font-bold t-meta border transition-all active:scale-95 ${current === p ? "bg-slate-900 text-white border-slate-900 shadow-md" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"}">${esc(p)}</button>`).join("")}
+        </div>`;
+      }
+
+      function instructionBox(id, onSend, placeholder, label) {
+        return `<section class="p-6 bg-slate-800 rounded-3xl shadow-xl mt-8">
+          <h3 class="t-label text-blue-300 mb-3">${esc(label || "AI 수정 지시")}</h3>
+          <div class="flex gap-2">
+            <input type="text" id="${id}" value="${escAttr(draft(id))}" oninput="setDraft('${id}', this.value)"
+              class="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3.5 text-white t-small outline-none placeholder:text-slate-300 focus:border-blue-400"
+              placeholder="${escAttr(placeholder)}" aria-label="수정 지시 입력">
+            <button type="button" aria-label="수정 요청 보내기" onclick="${onSend}" class="bg-blue-600 hover:bg-blue-500 text-white px-4 rounded-xl active:scale-95 transition-all"><i data-lucide="send" class="w-5 h-5"></i></button>
+          </div>
+        </section>`;
+      }
+
+      function sessionBadge() {
+        const n = state.sessions.length;
+        if (!n) return "";
+        return `<p class="t-meta text-slate-600 mb-6">지금까지 진행한 인터뷰 ${n}건은 리포트에 모두 보존됩니다.</p>`;
+      }
+
+      /* =========================================================
+         13. 리포트
+         ========================================================= */
+      function buildReport() {
+        const L = [];
+        L.push("==================================================");
+        L.push("   DESIGN RESEARCH LAB · 분석 종합 리포트");
+        L.push("==================================================", "");
+        L.push(`[리서치 주제]`, `- ${state.researchTopic || "설정된 주제 없음"}`, "");
+
+        if (state.categories.length || state.manualPersonas.length) {
+          L.push("==================================================");
+          L.push(" 제안된 핵심 인터뷰 타겟 리스트");
+          L.push("==================================================");
+          state.categories.forEach(cat => {
+            L.push("", `[${cat.name}]`, cat.desc ? `  ${cat.desc}` : "");
+            cat.personas.forEach(p => L.push(`- ${p.name}`, `  설명: ${p.description}`, `  니즈: ${p.needs}`, ""));
+          });
+          if (state.manualPersonas.length) {
+            L.push("", "[사용자 직접 추가 타겟]");
+            state.manualPersonas.forEach(p => L.push(`- ${p.name}`, `  설명: ${p.description}`, ""));
+          }
+        }
+
+        if (!state.sessions.length) {
+          L.push("저장된 인터뷰 분석 기록이 없습니다.");
+          return L.join("\n");
+        }
+
+        state.sessions.forEach((s, idx) => {
+          L.push("", "==================================================");
+          L.push(` 분석 세션 #${idx + 1} · [타겟] ${s.personaName}`);
+          L.push(`  진행 시각: ${nowLabel(s.createdAt)}`);
+          L.push("==================================================");
+          if (s.summary) L.push("", "[인터뷰 요약]", s.summary);
+
+          if (s.qaPairs.length) {
+            L.push("", "[대화 내용 (Q&A)]");
+            s.qaPairs.forEach((qa, i) => {
+              const mark = s.selectedQaIds.includes(qa.id) ? " ★(핵심 선택)" : "";
+              L.push(`Q${i + 1}${qa.followUp ? " (추가 질문)" : ""}${mark}: ${qa.q}`, `A: ${qa.a}`, "");
+            });
+          }
+          if (s.keyInsights) L.push("[AI Key Insights]", s.keyInsights, "");
+          if (s.userInsight) L.push("[사용자 발견 인사이트]", s.userInsight, "");
+
+          if (s.inferences.length) {
+            L.push(`[도출된 핵심 가치 추론 · ${s.inferencePerspective}]`);
+            s.inferences.forEach((inf, i) => {
+              L.push(`${i + 1}. ${inf.title}${s.selectedInferenceId === inf.id ? " ★(선택됨)" : ""}`, `   ${inf.description}`, "");
+            });
+          }
+          if (s.concepts.length) {
+            L.push(`[도출된 디자인 컨셉 · ${s.conceptPerspective}]`);
+            s.concepts.forEach((c, i) => {
+              L.push(`${i + 1}. ${c.title}${s.selectedConceptId === c.id ? " ★(최종 가설 채택)" : ""}`, `   핵심 가치: ${c.coreValue}`, `   ${c.description}`, "");
+            });
+          }
+          if (s.scenario) {
+            const picked = s.concepts.find(c => c.id === s.selectedConceptId);
+            L.push(`[컨셉 시나리오 · ${picked ? picked.title : "채택된 가설"}]`, s.scenario, "");
+          }
+
+          if (s.branches.length) {
+            s.branches.forEach((b, bi) => {
+              L.push("--------------------------------------------------");
+              L.push(`[분기 탐색 ${bi + 1}] ${b.reason}`);
+              L.push("--------------------------------------------------");
+              if (b.inferences.length) {
+                L.push(`추론 (${b.inferencePerspective}):`);
+                b.inferences.forEach((inf, i) => L.push(`  ${i + 1}. ${inf.title}`, `     ${inf.description}`));
+              }
+              if (b.selectedInferenceTitle) L.push(`선택했던 추론: ${b.selectedInferenceTitle}`);
+              if (b.concepts.length) {
+                L.push(`컨셉 (${b.conceptPerspective}):`);
+                b.concepts.forEach((c, i) => L.push(`  ${i + 1}. ${c.title}`, `     핵심 가치: ${c.coreValue}`, `     ${c.description}`));
+              }
+              if (b.scenario) L.push("당시 시나리오:", b.scenario);
+              L.push("");
+            });
+          }
+        });
+        return L.join("\n");
+      }
+
+      async function copyText(txt, okMsg) {
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(txt);
+          } else if (typeof document.execCommand !== "function") {
+            throw new Error("이 브라우저에서는 클립보드를 사용할 수 없습니다.");
+          } else {
+            const ta = document.createElement("textarea");
+            ta.value = txt; ta.setAttribute("readonly", "");
+            ta.style.cssText = "position:fixed;top:-1000px;opacity:0";
+            document.body.appendChild(ta); ta.select();
+            const ok = document.execCommand("copy");
+            document.body.removeChild(ta);
+            if (!ok) throw new Error("copy rejected");
+          }
+          toast(okMsg, "ok");
+        } catch (e) {
+          console.error(e);
+          toast("복사에 실패했습니다. 브라우저 권한을 확인해 주세요.", "error");
+        }
+      }
+
+      function downloadText(txt, filename) {
+        try {
+          const blob = new Blob([txt], { type: "text/plain;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url; a.download = filename;
+          document.body.appendChild(a); a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          toast("리포트를 파일로 저장했습니다.", "ok");
+        } catch (e) {
+          console.error(e);
+          toast("파일 저장에 실패했습니다.", "error");
+        }
+      }
+
+      /* =========================================================
+         14. ACTIONS
+         ========================================================= */
+      const Actions = {
+        cancel() { if (activeController) activeController.abort(); },
+
+        async validateKey() {
+          const input = document.getElementById("api-input");
+          const key = (input && input.value.trim()) || state.apiKey;
+          if (!key) { setState({ errorMsg: "Gemini API 키를 입력해 주세요." }); return; }
+          setState({ apiKey: key });
+          const ok = await withLoading("키를 확인하는 중", () => callGemini('Reply with JSON: {"status":"OK"}', "connection test"));
+          if (ok) {
+            sessionStorage.setItem(CONFIG.SESSION_KEY_API, key);
+            setState({ step: 0 });
+          } else {
+            sessionStorage.removeItem(CONFIG.SESSION_KEY_API);
+            setState({ apiKey: "" });
+          }
+        },
+
+        goHome() { persist(false); setState({ step: 0, editingQuestionId: null }); },
+
+        startNewProject() {
+          Object.keys(drafts).forEach(k => delete drafts[k]);
+          lastSaved = "";
+          setState({ ...blankProject(), ...nemoCarry(), personaSource: state.nemoRows.length ? state.personaSource : "ai", step: 1, errorMsg: null, editingQuestionId: null });
+        },
+
+        openProject(id) {
+          const p = Store.list().find(x => x.id === id);
+          if (!p) { toast("해당 프로젝트를 찾을 수 없습니다.", "error"); return; }
+          Object.keys(drafts).forEach(k => delete drafts[k]);
+          const data = { ...blankProject(), ...p.data, ...nemoCarry(), projectId: p.id };
+          if (!data.sessions.find(s => s.id === data.activeSessionId)) {
+            data.activeSessionId = data.sessions.length ? data.sessions[data.sessions.length - 1].id : null;
+          }
+          const { nemoRows: _nrows, nemoFields: _nfields, nemoPool: _npool, nemoHandle: _nh, nemoPending: _np, ...persistedOnly } = data;
+          lastSaved = JSON.stringify(persistedOnly);
+          setState({ ...data, isAnalyzing: false, errorMsg: null, editingQuestionId: null, step: lastCompletedStep(data) });
+          toast("프로젝트를 열었습니다.", "ok");
+          Actions.restoreNemoLink();
+        },
+
+        deleteProject(id) {
+          if (!confirm("이 프로젝트를 삭제할까요? 되돌릴 수 없습니다.")) return;
+          const removed = Store.remove(id);
+          // 현재 열려 있는 프로젝트를 지운 경우, 자동 저장이 되살리지 않도록 작업 상태도 비운다.
+          if (removed && id === state.projectId) {
+            Object.keys(drafts).forEach(k => delete drafts[k]);
+            lastSaved = "";
+            setState({ ...blankProject(), step: 0 });
+            toast("프로젝트를 삭제했습니다.", "ok");
+            return;
+          }
+          toast(removed ? "프로젝트를 삭제했습니다." : "삭제에 실패했습니다.", removed ? "ok" : "error");
+          render(false);
+        },
+
+        saveNow() {
+          const r = persist(true);
+          if (r === "ok") toast("현재 진행 상태를 저장했습니다.", "ok");
+          else if (r === "full") toast("저장 공간이 부족합니다. 홈에서 오래된 프로젝트를 삭제해 주세요.", "error");
+          else toast("저장할 내용이 아직 없습니다.", "info");
+        },
+
+        /* ---------- 네모트론 확장: 데이터 소스 ---------- */
+        setPersonaSource(src) {
+          if (state.personaSource === src) return;
+          setState({ personaSource: src === "nemotron" ? "nemotron" : "ai" });
+        },
+
+        // 파일 선택 — 가능하면 로컬 파일 연결을 기억할 수 있는 피커를 사용합니다.
+        async nemoPickFile() {
+          if (typeof window.showOpenFilePicker === "function") {
+            try {
+              const picked = await window.showOpenFilePicker({
+                multiple: false,
+                types: [{ description: "네모트론 페르소나 데이터", accept: {
+                  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+                  "application/vnd.ms-excel": [".xls"],
+                  "text/csv": [".csv"]
+                } }]
+              });
+              const handle = picked && picked[0];
+              if (handle) { await Actions.readNemoFile(await handle.getFile(), handle); return; }
+            } catch (err) {
+              if (err && err.name === "AbortError") return;
+            }
+          }
+          const el = document.getElementById("nemo-file");
+          if (el) el.click();
+        },
+
+        async readNemoFile(file, handle) {
+          if (!file) return;
+          const pending = state.nemoPending;
+          if (pending && pending.fileName && file.name !== pending.fileName) {
+            setState({ errorMsg: `선택한 파일이 다릅니다. 이 프로젝트에는 ${pending.fileName} 파일을 연결해 주세요.` });
+            return;
+          }
+          const parsed = await withLoading("데이터 파일을 읽는 중", () => nemoParseFile(file));
+          if (!parsed) return;
+          setState({
+            nemoRows: parsed.rows,
+            nemoFields: parsed.headers,
+            nemoSheetName: parsed.sheetName,
+            nemoFileName: file.name,
+            nemoRowCount: parsed.rows.length,
+            nemoPool: [],
+            nemoHandle: handle || null,
+            nemoPending: null,
+            personaSource: "nemotron"
+          });
+          saveFileLink(state.projectId, file.name, handle || null);
+          toast(`사용자 ${parsed.rows.length.toLocaleString()}명을 불러왔습니다.`, "ok");
+        },
+
+        // 저장된 프로젝트를 열 때 이전에 쓰던 원본 파일을 자동으로 되살립니다.
+        async restoreNemoLink() {
+          if (state.personaSource !== "nemotron" || state.nemoRows.length) return;
+          if (!state.nemoFileName && !state.categories.length) return;
+          const rec = await loadFileLink(state.projectId);
+          const handle = rec && rec.handle;
+          if (handle && typeof handle.queryPermission === "function") {
+            try {
+              if (await handle.queryPermission({ mode: "read" }) === "granted") {
+                const parsed = await nemoParseFile(await handle.getFile());
+                setState({
+                  nemoRows: parsed.rows, nemoFields: parsed.headers, nemoSheetName: parsed.sheetName,
+                  nemoRowCount: parsed.rows.length, nemoHandle: handle, nemoPending: null
+                });
+                toast("연결된 파일에서 원본 데이터를 다시 불러왔습니다.", "ok");
+                return;
+              }
+              setState({ nemoHandle: handle, nemoPending: { fileName: rec.fileName || state.nemoFileName, hasHandle: true } });
+              return;
+            } catch (err) { console.warn("파일 재연결 실패", err); }
+          }
+          setState({ nemoPending: { fileName: (rec && rec.fileName) || state.nemoFileName, hasHandle: false } });
+        },
+
+        async reconnectNemoFile() {
+          const handle = state.nemoHandle;
+          if (handle && typeof handle.requestPermission === "function") {
+            try {
+              if (await handle.requestPermission({ mode: "read" }) === "granted") {
+                await Actions.readNemoFile(await handle.getFile(), handle);
+                return;
+              }
+            } catch (err) { console.warn("권한 요청 실패", err); }
+          }
+          Actions.nemoPickFile();
+        },
+
+        copyNemoRaw(personaId) {
+          const p = allPersonas().find(x => x.id === personaId);
+          const raw = p && ((Array.isArray(p.nemoRaw) && p.nemoRaw.length) ? p.nemoRaw : p.nemoEvidence);
+          if (!raw || !raw.length) { toast("복사할 원문이 없습니다.", "warn"); return; }
+          const head = `[네모트론 원문] ${p.nemoRealName || ""}${p.nemoMeta ? " · " + p.nemoMeta : ""}`.trim();
+          copyText([head, "", ...raw.map(r => `${r.field}: ${r.value}`)].join("\n"), "원문을 클립보드에 복사했습니다.");
+        },
+
+        clearNemoData() {
+          setState({ nemoRows: [], nemoFields: [], nemoSheetName: "", nemoFileName: "", nemoRowCount: 0, nemoPool: [], nemoHandle: null, nemoPending: null });
+          toast("불러온 데이터를 비웠습니다.", "info");
+        },
+
+        /* ---------- 네모트론 확장: 과제 특성 분석 ---------- */
+        async analyzeTask(instruction) {
+          const topic = draftOr("topic", state.researchTopic).trim();
+          if (!topic) { setState({ errorMsg: "리서치 주제를 입력해 주세요." }); return; }
+          if (!state.nemoRows.length) { setState({ errorMsg: "네모트론 데이터 파일을 먼저 불러와 주세요." }); return; }
+          const desc = "";
+          const res = await withLoading(instruction ? "과제 특성을 다시 분석하는 중" : "과제 특성을 분석하는 중",
+            () => callGemini(NEMO_PROMPTS.ANALYZE_SYS, NEMO_PROMPTS.ANALYZE_USER(topic, desc, instruction)));
+          if (!res) return;
+          let analysis;
+          try { analysis = normTaskAnalysis(res); }
+          catch (e) { setState({ errorMsg: e.message }); return; }
+          clearDrafts("task-instruction");
+          setState({ researchTopic: topic, taskAnalysis: analysis, step: 101 });
+        },
+
+        /* ---------- 네모트론 확장: 인터뷰 후보 선정 ---------- */
+        async selectNemoCandidates() {
+          if (!state.nemoRows.length) { setState({ errorMsg: "네모트론 데이터 파일을 먼저 불러와 주세요." }); return; }
+          if (!state.taskAnalysis) { setState({ errorMsg: "과제 특성 분석을 먼저 진행해 주세요." }); return; }
+
+          const topic = state.researchTopic;
+          const analysis = state.taskAnalysis;
+
+          const out = await withLoading(`전체 ${state.nemoRows.length.toLocaleString()}명에서 후보를 찾는 중`, async () => {
+            const pool = nemoLocalCandidates();
+            if (!pool.length) throw new Error("검색할 사용자 데이터가 없습니다.");
+            const fields = nemoRelevantFields();
+            const size = CONFIG.NEMO.BATCH;
+            const total = Math.ceil(pool.length / size);
+            const evals = [];
+            let failed = 0;
+
+            for (let i = 0; i < total; i++) {
+              const batch = pool.slice(i * size, i * size + size);
+              setState({ loadingMsg: `후보 ${Math.min((i + 1) * size, pool.length)} / ${pool.length}명을 유형별로 분류하는 중` });
+              const payload = batch.map(row => ({
+                personaId: nemoRowId(row),
+                personaName: nemoPersonaName(row),
+                data: nemoPayload(row, fields, 300)
+              }));
+              try {
+                evals.push(...normNemoEvals(await callGemini(NEMO_PROMPTS.CLASSIFY_SYS, NEMO_PROMPTS.CLASSIFY_USER(analysis, payload))));
+              } catch (err) {
+                if (err && err.aborted) throw err;
+                failed++;
+              }
+            }
+            if (!evals.length) throw new Error("후보 분류 결과를 받지 못했습니다. API 키와 네트워크 상태를 확인한 뒤 다시 시도해 주세요.");
+
+            const { picks, scored } = nemoAssign(pool, evals);
+            const categories = [];
+
+            for (const a of ARCHETYPES) {
+              const chosen = picks[a.key] || [];
+              if (!chosen.length) continue;
+              setState({ loadingMsg: `${a.short} ${chosen.length}명의 프로필을 정리하는 중` });
+              const payload = chosen.map(c => ({
+                personaId: c.id,
+                personaName: nemoPersonaName(c.row),
+                data: nemoPayload(c.row, fields, 700)
+              }));
+              let profiles = {};
+              try {
+                profiles = normNemoProfiles(await callGemini(NEMO_PROMPTS.PROFILE_SYS, NEMO_PROMPTS.PROFILE_USER(topic, analysis, a, payload)));
+              } catch (err) {
+                if (err && err.aborted) throw err;
+                profiles = {};
+              }
+              categories.push({
+                id: uid("cat"),
+                name: a.name,
+                desc: a.desc,
+                personas: chosen.map(c => {
+                  const fb = nemoFallbackProfile(c.row, a);
+                  const p = profiles[c.id] || {};
+                  return {
+                    id: uid("psn"),
+                    name: str(p.name, "") || fb.name,
+                    description: str(p.description, "") || fb.description,
+                    needs: str(p.needs, "") || fb.needs,
+                    source: "nemotron",
+                    nemoId: c.id,
+                    nemoRealName: nemoPersonaName(c.row),
+                    nemoMeta: nemoMetaLine(c.row),
+                    nemoReason: c.reason || (c.borrowed ? "유형별 인원을 맞추기 위해 적합도 순으로 추가한 후보입니다." : ""),
+                    nemoScore: c.score,
+                    nemoEvidence: nemoEvidence(c.row, fields),
+                    nemoRaw: nemoRawFields(c.row)
+                  };
+                })
+              });
+            }
+            if (!categories.length) throw new Error("선정된 후보가 없습니다. 과제 특성을 다시 분석한 뒤 시도해 주세요.");
+            return { categories, scored, failed };
+          });
+
+          if (!out) return;
+          if (out.failed) toast(`평가 묶음 ${out.failed}건이 응답하지 않아 나머지 결과로 선정했습니다.`, "warn");
+          setState({
+            categories: out.categories,
+            nemoPool: out.scored,
+            selectedPersonaId: null,
+            surveys: [],
+            selectedQuestionIds: [],
+            editingQuestionId: null,
+            step: 2
+          });
+          saveFileLink(state.projectId, state.nemoFileName, state.nemoHandle);
+        },
+
+        // 2단계에서 마음에 들지 않는 실제 후보를 다음 순위 후보로 교체합니다.
+        async swapNemoPersona(catId, personaId) {
+          const cat = state.categories.find(c => c.id === catId);
+          if (!cat) return;
+          if (!state.nemoPool.length) {
+            setState({ errorMsg: "원본 데이터가 메모리에 없어 다른 후보로 교체할 수 없습니다. 주제 화면에서 파일을 다시 불러와 주세요." });
+            return;
+          }
+          const arche = ARCHETYPES.find(a => a.name === cat.name) || ARCHETYPES[0];
+          const used = new Set(allPersonas().map(p => p.nemoId).filter(Boolean));
+          const next = state.nemoPool.find(s => s.key === arche.key && !used.has(s.id)) || state.nemoPool.find(s => !used.has(s.id));
+          if (!next) { setState({ errorMsg: "교체할 다른 후보가 남아 있지 않습니다." }); return; }
+
+          const fields = nemoRelevantFields();
+          const res = await withLoading("다른 후보의 프로필을 정리하는 중",
+            () => callGemini(NEMO_PROMPTS.PROFILE_SYS, NEMO_PROMPTS.PROFILE_USER(state.researchTopic, state.taskAnalysis || {}, arche,
+              [{ personaId: next.id, personaName: nemoPersonaName(next.row), data: nemoPayload(next.row, fields, 700) }])));
+          if (!res) return;
+
+          const fb = nemoFallbackProfile(next.row, arche);
+          const prof = normNemoProfiles(res)[next.id] || {};
+          const replacement = {
+            name: str(prof.name, "") || fb.name,
+            description: str(prof.description, "") || fb.description,
+            needs: str(prof.needs, "") || fb.needs,
+            source: "nemotron",
+            nemoId: next.id,
+            nemoRealName: nemoPersonaName(next.row),
+            nemoMeta: nemoMetaLine(next.row),
+            nemoReason: next.reason || "",
+            nemoScore: next.score,
+            nemoEvidence: nemoEvidence(next.row, fields),
+            nemoRaw: nemoRawFields(next.row)
+          };
+          const categories = state.categories.map(c => c.id !== catId ? c : {
+            ...c,
+            personas: c.personas.map(p => (p.id === personaId ? { ...p, ...replacement } : p))
+          });
+          const patch = { categories };
+          if (state.selectedPersonaId === personaId) {
+            patch.surveys = []; patch.selectedQuestionIds = []; patch.editingQuestionId = null;
+          }
+          setState(patch);
+          toast("다른 실제 후보로 교체했습니다.", "ok");
+        },
+
+        /* ---------- 1단계: 주제 ---------- */
+        async generatePersonas(instruction) {
+          const topic = draftOr("topic", state.researchTopic).trim();
+          if (!topic) { setState({ errorMsg: "리서치 주제를 입력해 주세요." }); return; }
+          const res = await withLoading(instruction ? "타겟을 다시 구성하는 중" : "핵심 타겟 12명을 분석하는 중",
+            () => callGemini(PROMPTS.PERSONAS(topic, instruction), topic));
+          if (!res) return;
+          let categories;
+          try { categories = normCategories(res); }
+          catch (e) { setState({ errorMsg: e.message }); return; }
+          clearDrafts("persona-instruction");
+          // 타겟을 다시 뽑으면 그 아래 단계(선택 대상/질문)는 모두 무효화
+          setState({
+            researchTopic: topic,
+            categories,
+            selectedPersonaId: null,
+            surveys: [],
+            selectedQuestionIds: [],
+            editingQuestionId: null,
+            step: 2
+          });
+        },
+
+        /* ---------- 2단계: 타겟 제안 ---------- */
+        async regeneratePersona(catId, personaId) {
+          const cat = state.categories.find(c => c.id === catId);
+          if (!cat) return;
+          const existing = cat.personas.map(p => p.name).join(", ");
+          const res = await withLoading("이 타겟을 다시 만드는 중",
+            () => callGemini(PROMPTS.SINGLE_PERSONA(state.researchTopic, cat.name, cat.desc, existing), "Generate one replacement persona."));
+          if (!res) return;
+          let np;
+          try { np = normPersona(res); }
+          catch (e) { setState({ errorMsg: e.message }); return; }
+          // ID는 유지하고 내용만 교체한다. (기존 버그: 새 ID를 부여해 인터뷰 이력과의 연결이 끊겼음)
+          const categories = state.categories.map(c => c.id !== catId ? c : {
+            ...c,
+            personas: c.personas.map(p => (p.id === personaId ? { ...p, ...np } : p))
+          });
+          const patch = { categories };
+          // 질문은 특정 타겟 기준으로 만들어졌으므로, 선택 중이던 타겟이 바뀌면 질문도 폐기
+          if (state.selectedPersonaId === personaId) {
+            patch.surveys = []; patch.selectedQuestionIds = []; patch.editingQuestionId = null;
+          }
+          setState(patch);
+          toast("타겟을 새로 생성했습니다.", "ok");
+        },
+
+        addManualPersona() {
+          const name = draft("manual-p-name").trim();
+          const desc = draft("manual-p-desc").trim();
+          if (!name) { setState({ errorMsg: "타겟 이름을 입력해 주세요." }); return; }
+          const p = { id: uid("psn"), name, description: desc || "직접 추가한 타겟입니다.", needs: desc || "직접 추가한 타겟입니다." };
+          clearDrafts("manual-p-name", "manual-p-desc");
+          setState({ manualPersonas: [...state.manualPersonas, p] });
+          toast("타겟을 추가했습니다.", "ok");
+        },
+
+        removeManualPersona(id) {
+          const patch = { manualPersonas: state.manualPersonas.filter(p => p.id !== id) };
+          if (state.selectedPersonaId === id) {
+            patch.selectedPersonaId = null; patch.surveys = []; patch.selectedQuestionIds = [];
+          }
+          setState(patch);
+          toast("타겟을 삭제했습니다.", "ok");
+        },
+
+        /* ---------- 3단계: 대상 선택 ---------- */
+        selectPersona(id) {
+          if (state.selectedPersonaId === id) return;
+          // 다른 타겟을 고르면 이전 타겟 기준으로 만들어진 질문은 폐기 (인터뷰 기록은 그대로 보존)
+          setState({ selectedPersonaId: id, surveys: [], selectedQuestionIds: [], editingQuestionId: null });
+        },
+
+        async generateSurveys(instruction) {
+          const persona = findPersona(state.selectedPersonaId);
+          if (!persona) { setState({ errorMsg: "인터뷰할 타겟을 먼저 선택해 주세요." }); return; }
+          const res = await withLoading(instruction ? "질문을 다시 구성하는 중" : "인터뷰 질문을 설계하는 중",
+            () => callGemini(PROMPTS.SURVEYS(state.researchTopic, persona, instruction), "Generate questions."));
+          if (!res) return;
+          let surveys;
+          try { surveys = normSurveys(res); }
+          catch (e) { setState({ errorMsg: e.message }); return; }
+          const manual = state.surveys.filter(s => s.source === "manual");
+          const keep = state.selectedQuestionIds.filter(id => manual.some(s => s.questions.some(q => q.id === id)));
+          clearDrafts("survey-instruction");
+          setState({ surveys: [...surveys, ...manual], selectedQuestionIds: keep, editingQuestionId: null, step: 4 });
+        },
+
+        /* ---------- 4단계: 질문 설계 ---------- */
+        toggleQuestion(id) {
+          const list = state.selectedQuestionIds.includes(id)
+            ? state.selectedQuestionIds.filter(x => x !== id)
+            : [...state.selectedQuestionIds, id];
+          setState({ selectedQuestionIds: list });
+        },
+        selectAllQuestions() { setState({ selectedQuestionIds: allQuestions().map(q => q.id) }); },
+        clearQuestions() { setState({ selectedQuestionIds: [] }); },
+
+        editQuestion(id) {
+          const q = allQuestions().find(x => x.id === id);
+          drafts["qedit"] = q ? q.text : "";
+          setState({ editingQuestionId: id });
+        },
+        cancelQuestionEdit() { clearDrafts("qedit"); setState({ editingQuestionId: null }); },
+        saveQuestionEdit(id) {
+          const val = draft("qedit").trim();
+          if (!val) { setState({ errorMsg: "질문 내용을 입력해 주세요." }); return; }
+          // ID 기반으로 찾으므로 문자열 파싱이 필요 없고, 선택 상태도 그대로 유지된다.
+          const surveys = state.surveys.map(s => ({
+            ...s,
+            questions: s.questions.map(q => (q.id === id ? { ...q, text: val } : q))
+          }));
+          clearDrafts("qedit");
+          setState({ surveys, editingQuestionId: null });
+          toast("질문을 수정했습니다.", "ok");
+        },
+        deleteQuestion(id) {
+          const surveys = state.surveys
+            .map(s => ({ ...s, questions: s.questions.filter(q => q.id !== id) }))
+            .filter(s => s.questions.length);
+          setState({
+            surveys,
+            selectedQuestionIds: state.selectedQuestionIds.filter(x => x !== id),
+            editingQuestionId: state.editingQuestionId === id ? null : state.editingQuestionId
+          });
+          toast("질문을 삭제했습니다.", "ok");
+        },
+        addManualQuestions() {
+          const v = draft("manual-q");
+          const list = v.split("\n").map(x => x.trim()).filter(Boolean);
+          if (!list.length) { setState({ errorMsg: "추가할 질문을 입력해 주세요." }); return; }
+          const survey = { id: uid("sv"), source: "manual", title: "직접 추가한 질문", questions: list.map(t => ({ id: uid("q"), text: t })) };
+          clearDrafts("manual-q");
+          setState({
+            surveys: [...state.surveys, survey],
+            selectedQuestionIds: [...state.selectedQuestionIds, ...survey.questions.map(q => q.id)]
+          });
+          toast(`질문 ${list.length}개를 추가했습니다.`, "ok");
+        },
+
+        /* ---------- 5·6단계: 인터뷰 ---------- */
+        async performInterview() {
+          const persona = findPersona(state.selectedPersonaId);
+          if (!persona) { setState({ errorMsg: "인터뷰할 타겟을 먼저 선택해 주세요." }); return; }
+          const qs = selectedQuestions();
+          if (!qs.length) { setState({ errorMsg: "인터뷰 질문을 1개 이상 선택해 주세요." }); return; }
+          const texts = qs.map(q => q.text);
+          const res = await withLoading("가상 인터뷰를 진행하는 중",
+            () => callGemini(PROMPTS.INTERVIEW(state.researchTopic, persona, texts), "Start interview."));
+          if (!res) return;
+          let norm;
+          try { norm = normInterview(res, texts); }
+          catch (e) { setState({ errorMsg: e.message }); return; }
+
+          const s = blankSession(persona);
+          s.questions = texts;
+          s.summary = norm.summary;
+          s.qaPairs = norm.qaPairs;
+          s.keyInsights = norm.keyInsights;
+          // 새 세션은 완전히 비어 있으므로, 이전 타겟의 추론·컨셉·시나리오가 남을 여지가 없다.
+          clearDrafts("user-insight", "followup");
+          setState({ sessions: [...state.sessions, s], activeSessionId: s.id, step: 6 });
+        },
+
+        async askFollowUp() {
+          const s = activeSession();
+          if (!s) return;
+          const question = draft("followup").trim();
+          if (!question) { toast("추가로 물어볼 내용을 입력해 주세요.", "warn"); return; }
+          const persona = { name: s.personaName, description: s.personaDescription, needs: s.personaNeeds };
+          const res = await withLoading("추가 답변을 받는 중",
+            () => callGemini(PROMPTS.FOLLOW_UP(state.researchTopic, persona, s.qaPairs, question), "Ask follow-up."));
+          if (!res) return;
+          let qa;
+          try { qa = normFollowUp(res, question); }
+          catch (e) { setState({ errorMsg: e.message }); return; }
+          clearDrafts("followup");
+          updateSession({ qaPairs: [...s.qaPairs, qa] });
+          toast("추가 답변을 받았습니다.", "ok");
+        },
+
+        /* ---------- 7단계: 결과 정리 ---------- */
+        toggleQa(id) {
+          const s = activeSession(); if (!s) return;
+          const list = s.selectedQaIds.includes(id) ? s.selectedQaIds.filter(x => x !== id) : [...s.selectedQaIds, id];
+          updateSession({ selectedQaIds: list });
+        },
+        selectAllQa() { const s = activeSession(); if (s) updateSession({ selectedQaIds: s.qaPairs.map(q => q.id) }); },
+        clearQa() { if (activeSession()) updateSession({ selectedQaIds: [] }); },
+
+        /* ---------- 8단계: 추론 ---------- */
+        async generateInferences(perspective) {
+          const s = activeSession();
+          if (!s) { setState({ errorMsg: "먼저 인터뷰를 진행해 주세요." }); return; }
+          const p = perspective || s.inferencePerspective || PERSPECTIVES[0];
+          const insight = draftOr("user-insight", s.userInsight).trim();
+
+          let picked = s.qaPairs.filter(qa => s.selectedQaIds.includes(qa.id));
+          if (!picked.length) picked = s.qaPairs;
+          const qaText = picked.map(qa => `Q: ${qa.q}\nA: ${qa.a}`).join("\n\n");
+          const persona = { name: s.personaName, description: s.personaDescription, needs: s.personaNeeds };
+
+          const res = await withLoading(`${p}에서 핵심 가치를 추론하는 중`,
+            () => callGemini(PROMPTS.INFERENCES(state.researchTopic, persona, qaText, insight, p), "Generate inferences."));
+          if (!res) return;
+          let inferences;
+          try { inferences = normInferences(res); }
+          catch (e) { setState({ errorMsg: e.message }); return; }
+
+          const cur = activeSession();
+          // 이전 추론과 그 아래에서 나온 컨셉·시나리오를 분기 기록으로 보존한 뒤 초기화
+          const branches = cur.inferences.length ? archiveBranch(cur, `이전 추론 · ${cur.inferencePerspective}`, true) : cur.branches;
+          updateSession({
+            userInsight: insight,
+            inferencePerspective: p,
+            inferences,
+            selectedInferenceId: null,
+            conceptPerspective: p,
+            concepts: [],
+            selectedConceptId: null,
+            scenario: "",
+            branches
+          }, { step: 8 });
+        },
+
+        selectInference(id) { if (activeSession()) updateSession({ selectedInferenceId: id }); },
+
+        /* ---------- 9단계: 컨셉 ---------- */
+        async generateConcepts(perspective) {
+          const s = activeSession();
+          if (!s) return;
+          const inf = s.inferences.find(i => i.id === s.selectedInferenceId);
+          if (!inf) { setState({ errorMsg: "가장 중요한 핵심 가치(추론)를 먼저 선택해 주세요." }); return; }
+          const p = perspective || s.conceptPerspective || PERSPECTIVES[0];
+
+          let picked = s.qaPairs.filter(qa => s.selectedQaIds.includes(qa.id));
+          if (!picked.length) picked = s.qaPairs;
+          const qaText = picked.map(qa => `Q: ${qa.q}\nA: ${qa.a}`).join("\n\n");
+          const persona = { name: s.personaName, description: s.personaDescription, needs: s.personaNeeds };
+
+          const res = await withLoading(`${p}에서 디자인 컨셉을 도출하는 중`,
+            () => callGemini(PROMPTS.CONCEPTS(state.researchTopic, persona, qaText, s.userInsight, inf, p), "Generate concepts."));
+          if (!res) return;
+          let concepts;
+          try { concepts = normConcepts(res); }
+          catch (e) { setState({ errorMsg: e.message }); return; }
+
+          const cur = activeSession();
+          const branches = cur.concepts.length ? archiveBranch(cur, `이전 컨셉 · ${cur.conceptPerspective}`, false) : cur.branches;
+          updateSession({
+            conceptPerspective: p,
+            concepts,
+            selectedConceptId: null,
+            scenario: "",
+            branches
+          }, { step: 9 });
+        },
+
+        selectConcept(id) { if (activeSession()) updateSession({ selectedConceptId: id }); },
+
+        /* ---------- 10단계: 시나리오 ---------- */
+        async generateScenario() {
+          const s = activeSession();
+          if (!s) return;
+          const c = s.concepts.find(x => x.id === s.selectedConceptId);
+          if (!c) { setState({ errorMsg: "시나리오로 만들 컨셉을 먼저 선택해 주세요." }); return; }
+          const persona = { name: s.personaName, description: s.personaDescription, needs: s.personaNeeds };
+          const res = await withLoading("컨셉 시나리오를 작성하는 중",
+            () => callGemini(PROMPTS.SCENARIO(state.researchTopic, persona, c), "Generate scenario."));
+          if (!res) return;
+          let scenario;
+          try { scenario = normScenario(res); }
+          catch (e) { setState({ errorMsg: e.message }); return; }
+          updateSession({ scenario }, { step: 10 });
+        },
+
+        interviewAnotherTarget() {
+          clearDrafts("user-insight", "followup", "manual-q", "qedit");
+          setState({ step: 3, editingQuestionId: null });
+        },
+
+        openSession(id) {
+          const s = state.sessions.find(x => x.id === id);
+          if (!s) return;
+          clearDrafts("user-insight", "followup");
+          const step = s.scenario ? 10 : s.concepts.length ? 9 : s.inferences.length ? 8 : 7;
+          setState({ activeSessionId: id, step });
+        },
+
+        copyReport() { copyText(buildReport(), "분석 종합 리포트를 복사했습니다."); },
+        downloadReport() {
+          const name = (state.researchTopic.trim() || "design-research").slice(0, 30).replace(/[\\/:*?"<>|]/g, "_");
+          downloadText(buildReport(), `${name}_리포트.txt`);
+        },
+        copyScenario() {
+          const s = activeSession();
+          if (!s || !s.scenario) return;
+          copyText(s.scenario, "시나리오를 복사했습니다.");
+        }
+      };
+      window.Actions = Actions;
+
+      /* =========================================================
+         15. 화면별 렌더
+         ========================================================= */
+      function viewAuth() {
+        return `<div class="min-h-screen flex flex-col items-center justify-center px-8 py-16 bg-white text-center animate-fade-in">
+          <div class="w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center mb-10 shadow-[0_10px_24px_rgba(37,99,235,.3)]">
+            <i data-lucide="fingerprint" class="text-white w-12 h-12"></i>
+          </div>
+          <h1 class="t-display italic text-slate-900 mb-4">Design Research Lab</h1>
+          <p class="t-small text-slate-600 font-bold mb-12">사용자 인터뷰에서 디자인 컨셉까지, 10단계 리서치 도구</p>
+          <div class="w-full space-y-4">
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" class="inline-block t-small text-blue-700 font-bold underline underline-offset-4">개인 API 키 발급받기</a>
+            <label for="api-input" class="sr-only">Gemini API 키</label>
+            <input type="password" id="api-input" autocomplete="off"
+              class="w-full p-5 bg-white border-2 border-slate-300 rounded-2xl text-center focus:border-blue-600 outline-none t-h3 font-medium text-slate-900 placeholder:text-slate-500 placeholder:font-normal"
+              placeholder="API 키를 붙여 넣으세요">
+            <p class="t-meta text-slate-600">키는 이 브라우저 탭에만 임시 보관되며 서버로 전송되지 않습니다.</p>
+            ${primaryBtn("시작하기", "Actions.validateKey()")}
+          </div>
+        </div>`;
+      }
+
+      function viewHome() {
+        const projects = Store.list();
+        return `<div class="flex flex-col min-h-screen bg-slate-900 text-white relative overflow-hidden">
+          <div class="absolute top-[-25%] left-[-20%] w-[140%] h-[55%] bg-blue-600 rounded-full blur-[110px] opacity-40"></div>
+          <div class="relative z-10 flex flex-col flex-1 px-7 pt-16 pb-12 justify-center gap-8">
+            <div class="space-y-5">
+              <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 t-meta font-bold"><i data-lucide="sparkles" class="text-yellow-300 w-4 h-4"></i> AI Researcher</span>
+              <h1 class="t-display italic leading-tight">사용자의<br/>깊은 속마음을<br/><span class="text-sky-300">탐색하세요</span></h1>
+              <p class="t-body text-slate-100">타겟 발굴부터 가상 인터뷰, 핵심 가치 추론, 디자인 컨셉과 시나리오까지 열 단계로 이어집니다.</p>
+            </div>
+
+            <button type="button" onclick="Actions.startNewProject()" class="w-full bg-white text-slate-900 py-5 rounded-2xl font-bold t-h3 flex items-center justify-center gap-2 shadow-2xl active:scale-[0.98] transition-all">
+              새 인터뷰 시작 <i data-lucide="arrow-right" class="w-5 h-5"></i>
+            </button>
+
+            <div>
+              <h2 class="t-label text-slate-300 mb-3">저장된 프로젝트 ${projects.length}/${CONFIG.MAX_PROJECTS}</h2>
+              ${projects.length ? `<ul class="space-y-2">${projects.map(p => `
+                <li class="flex items-center gap-2 bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
+                  <button type="button" onclick="Actions.openProject('${escAttr(p.id)}')" class="flex-1 text-left min-w-0">
+                    <span class="block t-small font-bold text-white truncate">${esc(p.title)}</span>
+                    <span class="block t-meta text-slate-200">${esc(nowLabel(p.savedAt))} · 인터뷰 ${(p.data && p.data.sessions ? p.data.sessions.length : 0)}건</span>
+                  </button>
+                  <button type="button" aria-label="${escAttr(p.title)} 삭제" onclick="Actions.deleteProject('${escAttr(p.id)}')" class="p-2.5 rounded-full hover:bg-white/10 text-slate-200 flex-shrink-0"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                </li>`).join("")}</ul>`
+              : `<p class="t-small text-slate-200 bg-white/5 border border-white/20 rounded-2xl px-4 py-5">아직 저장된 프로젝트가 없습니다. 주제를 입력하면 진행 상태가 자동으로 저장됩니다.</p>`}
+            </div>
+          </div>
+        </div>`;
+      }
+
+      /* =========================================================
+         15-A. 스크롤 박스 (긴 목록 옆의 슬라이드 버튼)
+         ========================================================= */
+      function scrollBox(id, inner, maxHeight, extraClass) {
+        return `<div class="relative">
+          <div id="${id}" data-scrollbox="1" class="overflow-y-auto no-scrollbar pr-5 ${extraClass || ""}" style="max-height:${maxHeight}">${inner}</div>
+          <div id="${id}-track" class="hidden absolute right-0 top-1 bottom-1 w-3 rounded-full bg-slate-200 border border-slate-300" aria-hidden="true">
+            <div id="${id}-thumb" class="absolute left-[1px] right-[1px] rounded-full bg-slate-700 cursor-grab active:cursor-grabbing shadow"></div>
+          </div>
+        </div>`;
+      }
+
+      let sbDrag = null;
+      function sbPointerY(e) { return e.touches && e.touches[0] ? e.touches[0].clientY : e.clientY; }
+      function sbMove(e) {
+        if (!sbDrag) return;
+        const { box, thumb, startY, startTop } = sbDrag;
+        const span = box.clientHeight - thumb.offsetHeight;
+        if (span <= 0) return;
+        box.scrollTop = startTop + (sbPointerY(e) - startY) * ((box.scrollHeight - box.clientHeight) / span);
+        if (e.cancelable) e.preventDefault();
+      }
+      window.addEventListener("mousemove", sbMove);
+      window.addEventListener("touchmove", sbMove, { passive: false });
+      window.addEventListener("mouseup", () => { sbDrag = null; });
+      window.addEventListener("touchend", () => { sbDrag = null; });
+
+      // 헤더와 도크의 실제 높이를 재어 본문 여백을 맞춥니다. (화면마다 도크 높이가 달라 생기는 어색한 간격 제거)
+      function syncLayout() {
+        const page = document.querySelector(".dock-space, .page-top");
+        if (!page) return;
+        const head = document.querySelector("header.fixed");
+        const bar = document.querySelector(".dock");
+        page.style.paddingTop = ((head ? head.offsetHeight : 56) + 40) + "px";
+        if (page.classList.contains("dock-space")) {
+          page.style.paddingBottom = ((bar ? bar.offsetHeight : 150) + 32) + "px";
+        }
+      }
+
+      function initScrollBoxes() {
+        document.querySelectorAll("[data-scrollbox]").forEach(box => {
+          const track = document.getElementById(box.id + "-track");
+          const thumb = document.getElementById(box.id + "-thumb");
+          if (!track || !thumb) return;
+          if (box.scrollHeight - box.clientHeight <= 6) { track.classList.add("hidden"); return; }
+          track.classList.remove("hidden");
+          const sync = () => {
+            const h = Math.max(40, Math.round(box.clientHeight * (box.clientHeight / box.scrollHeight)));
+            const span = box.clientHeight - h;
+            const ratio = box.scrollTop / (box.scrollHeight - box.clientHeight || 1);
+            thumb.style.height = h + "px";
+            thumb.style.top = Math.round(ratio * span) + "px";
+          };
+          sync();
+          box.addEventListener("scroll", sync, { passive: true });
+          const start = (e) => {
+            sbDrag = { box, thumb, startY: sbPointerY(e), startTop: box.scrollTop };
+            if (e.cancelable) e.preventDefault();
+          };
+          thumb.addEventListener("mousedown", start);
+          thumb.addEventListener("touchstart", start, { passive: false });
+          track.addEventListener("click", (e) => {
+            if (e.target === thumb) return;
+            const r = track.getBoundingClientRect();
+            box.scrollTop = ((e.clientY - r.top) / r.height) * (box.scrollHeight - box.clientHeight);
+          });
+        });
+      }
+
+      /* =========================================================
+         15-C. 원본 파일 연결 기억 (File System Access + IndexedDB)
+         ========================================================= */
+      const FILE_DB = { name: "design_research_files_v1", store: "handles" };
+      let fileDbPromise = null;
+
+      function openFileDb() {
+        if (!("indexedDB" in window)) return Promise.reject(new Error("IDB_UNAVAILABLE"));
+        if (fileDbPromise) return fileDbPromise;
+        fileDbPromise = new Promise((res, rej) => {
+          const req = indexedDB.open(FILE_DB.name, 1);
+          req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains(FILE_DB.store)) db.createObjectStore(FILE_DB.store, { keyPath: "id" });
+          };
+          req.onsuccess = () => res(req.result);
+          req.onerror = () => rej(req.error || new Error("IDB_OPEN_FAILED"));
+        });
+        return fileDbPromise;
+      }
+      function fileDbAction(mode, fn) {
+        return openFileDb().then(db => new Promise((res, rej) => {
+          const tx = db.transaction(FILE_DB.store, mode);
+          const rq = fn(tx.objectStore(FILE_DB.store));
+          rq.onsuccess = () => res(rq.result);
+          rq.onerror = () => rej(rq.error || new Error("IDB_REQUEST_FAILED"));
+        }));
+      }
+      async function saveFileLink(id, fileName, handle) {
+        if (!id) return;
+        try { await fileDbAction("readwrite", st => st.put({ id, fileName, handle: handle || null, savedAt: Date.now() })); }
+        catch (e) { console.warn("파일 연결 저장 실패", e); }
+      }
+      async function loadFileLink(id) {
+        if (!id) return null;
+        try { return await fileDbAction("readonly", st => st.get(id)); }
+        catch (e) { return null; }
+      }
+
+      function nemoRawFields(row) {
+        const out = [];
+        let total = 0;
+        for (const f of Object.keys(row || {})) {
+          if (f.startsWith("__") || f === "localScore") continue;
+          const v = String(row[f] ?? "").trim();
+          if (!v) continue;
+          const val = v.length > 700 ? v.slice(0, 699) + "…" : v;
+          if (total + val.length > 3500) break;
+          total += val.length;
+          out.push({ field: f, value: val });
+        }
+        return out;
+      }
+
+      /* =========================================================
+         15-B. 네모트론 확장 화면 (주제 화면 부분 + 과제 특성 분석 화면)
+         ========================================================= */
+      function subHeader(title, backStep, nextStep) {
+        const canNext = nextStep !== null && nextStep !== undefined;
+        return `
+        <header class="fixed top-0 left-0 right-0 z-50 bg-white max-w-[430px] mx-auto">
+          <div class="px-3 h-14 flex items-center justify-between gap-1">
+            <div class="flex items-center gap-1 overflow-hidden flex-1 min-w-0">
+              <button type="button" aria-label="이전 단계로" onclick="setState({step:${backStep}})" class="p-2.5 rounded-full hover:bg-slate-100 active:bg-slate-200 text-slate-800 flex-shrink-0"><i data-lucide="chevron-left" class="w-6 h-6"></i></button>
+              <h1 class="t-h3 truncate text-slate-900">${esc(title)}</h1>
+            </div>
+            <div class="flex items-center gap-0.5 flex-shrink-0 text-slate-800">
+              <button type="button" ${canNext ? "" : "disabled"} aria-label="다음 단계로" onclick="setState({step:${canNext ? nextStep : 0}})" class="p-2.5 rounded-full hover:bg-slate-100 active:bg-slate-200 ${canNext ? "text-slate-900" : "text-slate-300"}"><i data-lucide="chevron-right" class="w-6 h-6"></i></button>
+              <button type="button" aria-label="진행 상태 저장" onclick="Actions.saveNow()" class="p-2.5 rounded-full hover:bg-slate-100 active:bg-slate-200"><i data-lucide="save" class="w-6 h-6"></i></button>
+              <button type="button" aria-label="처음 화면으로" onclick="Actions.goHome()" class="p-2.5 rounded-full hover:bg-slate-100 active:bg-slate-200"><i data-lucide="home" class="w-6 h-6"></i></button>
+            </div>
+          </div>
+          <div class="px-4 pb-2 flex items-center gap-3">
+            <div class="h-2 bg-slate-300 rounded-full flex-1 overflow-hidden"><div class="h-full bg-sky-600 rounded-full" style="width:100%"></div></div>
+            <span class="t-meta font-bold text-slate-700 flex-shrink-0">과제 해석</span>
+          </div>
+        </header>`;
+      }
+
+      // 저장된 프로젝트의 원본 파일 재연결 안내
+      function nemoReconnectBanner() {
+        const p = state.nemoPending;
+        if (!p || state.nemoRows.length) return "";
+        return `<section class="bg-amber-50 border-2 border-amber-400 rounded-3xl p-6 mb-6 shadow-md">
+          <h3 class="t-label text-amber-900 mb-2 flex items-center gap-2"><i data-lucide="link" class="w-5 h-5"></i> 원본 데이터 다시 연결</h3>
+          <p class="t-small text-amber-950 prose-ko mb-1">이 프로젝트는 <b>${esc(p.fileName || "이전 데이터 파일")}</b> 파일로 후보를 선정했습니다.</p>
+          <p class="t-meta text-amber-900 mb-4">${p.hasHandle ? "파일 연결 기록이 남아 있습니다. 아래 버튼을 누르면 권한을 확인한 뒤 바로 불러옵니다." : "같은 파일을 다시 선택해 주세요."}</p>
+          <button type="button" onclick="Actions.reconnectNemoFile()"
+            class="w-full py-4 rounded-2xl bg-amber-600 text-white font-bold t-small active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+            <i data-lucide="folder-open" class="w-5 h-5"></i>파일 다시 연결하기
+          </button>
+        </section>`;
+      }
+
+      // 주제 화면에 얹히는 데이터 소스 선택 + 업로드 패널
+      function nemoSourcePanel() {
+        const hasData = state.nemoRows.length > 0;
+        const useNemo = state.personaSource === "nemotron";
+        const tab = (key, label, sub, icon) => {
+          const on = state.personaSource === key;
+          return `<button type="button" onclick="Actions.setPersonaSource('${key}')" aria-pressed="${on}"
+            class="flex-1 text-left p-5 rounded-2xl border-2 transition-all ${on ? "border-slate-900 bg-slate-900 shadow-lg" : "border-slate-300 bg-white hover:border-slate-500"}">
+            <span class="flex items-center gap-2 mb-2">
+              <i data-lucide="${icon}" class="w-5 h-5 ${on ? "text-sky-300" : "text-slate-700"}"></i>
+              ${on ? `<i data-lucide="check-circle-2" class="w-5 h-5 text-sky-300"></i>` : ""}
+            </span>
+            <span class="block t-h3 ${on ? "text-white" : "text-slate-900"}">${esc(label)}</span>
+            <span class="block t-meta ${on ? "text-sky-200" : "text-slate-700"} leading-snug mt-1">${esc(sub)}</span>
+          </button>`;
+        };
+
+        const dropZone = `
+          <div class="mt-5 border-2 ${hasData ? "border-emerald-500 bg-emerald-50" : "border-dashed border-slate-400 bg-slate-100"} rounded-3xl p-6 text-center">
+            <i data-lucide="${hasData ? "file-check-2" : "file-spreadsheet"}" class="w-10 h-10 mx-auto mb-3 ${hasData ? "text-emerald-700" : "text-slate-700"}"></i>
+            <p class="t-h3 ${hasData ? "text-emerald-900" : "text-slate-900"} mb-1">${hasData ? "데이터 준비 완료" : "데이터 파일을 선택해 주세요"}</p>
+            <p class="t-small ${hasData ? "text-emerald-900" : "text-slate-700"} mb-4 break-all">${hasData ? esc(state.nemoFileName) : "XLSX · XLS · CSV · 최대 50MB"}</p>
+            <input type="file" id="nemo-file" accept=".xlsx,.xls,.csv" class="hidden" onchange="Actions.readNemoFile(this.files && this.files[0])">
+            <button type="button" onclick="Actions.nemoPickFile()"
+              class="px-6 py-4 rounded-2xl bg-slate-900 text-white font-bold t-small active:scale-95 transition-all inline-flex items-center gap-2 shadow-md">
+              <i data-lucide="upload-cloud" class="w-5 h-5"></i>${hasData ? "다른 파일 선택" : "데이터 불러오기"}
+            </button>
+            ${hasData ? `
+              <div class="grid grid-cols-3 gap-2 mt-5 text-left">
+                <div class="bg-white rounded-xl px-3 py-2.5 border-2 border-emerald-300"><span class="block t-meta text-slate-700">Sheet</span><span class="block t-meta font-bold text-slate-900 truncate">${esc(state.nemoSheetName)}</span></div>
+                <div class="bg-white rounded-xl px-3 py-2.5 border-2 border-emerald-300"><span class="block t-meta text-slate-700">사용자</span><span class="block t-meta font-bold text-slate-900">${state.nemoRows.length.toLocaleString()}명</span></div>
+                <div class="bg-white rounded-xl px-3 py-2.5 border-2 border-emerald-300"><span class="block t-meta text-slate-700">필드</span><span class="block t-meta font-bold text-slate-900">${state.nemoFields.length}개</span></div>
+              </div>
+              <button type="button" onclick="Actions.clearNemoData()" class="mt-4 t-small font-bold text-slate-700 underline underline-offset-4">불러온 데이터 비우기</button>` : ""}
+          </div>
+          <p class="t-meta text-slate-700 mt-4">원본 데이터는 이 브라우저 메모리에만 올라가며 저장되거나 전송되지 않습니다. 선정된 12명의 프로필과 원문만 프로젝트에 저장됩니다.</p>`;
+
+        return `
+          <h2 class="t-h1 text-slate-900 mt-14 mb-3">타겟을 어디서 찾을까요?</h2>
+          <p class="t-small text-slate-600 mb-6">AI가 만든 가상 타겟과 실제 페르소나 데이터 중 하나를 고를 수 있습니다.</p>
+          <section class="bg-white border-2 border-slate-300 rounded-3xl p-6 shadow-md mb-6">
+            <div class="flex gap-3">
+              ${tab("ai", "AI 가상 타겟", "주제만으로 12명 생성", "sparkles")}
+              ${tab("nemotron", "네모트론 페르소나 데이터", "업로드한 데이터에서 선정", "users")}
+            </div>
+            ${useNemo ? dropZone : ""}
+          </section>`;
+      }
+
+      function nemoAnalysisRow(n, label, value) {
+        const text = Array.isArray(value) ? value.join(" · ") : String(value || "");
+        return `<div class="p-5 border-b-2 border-slate-200 last:border-0">
+          <span class="flex items-center gap-2 mb-2">
+            <span class="w-7 h-7 rounded-lg bg-slate-900 text-white font-bold t-meta flex items-center justify-center flex-shrink-0">${n}</span>
+            <span class="t-label text-slate-900">${esc(label)}</span>
+          </span>
+          <p class="t-small text-slate-800 prose-ko">${esc(text || NEMO_EMPTY)}</p>
+        </div>`;
+      }
+
+      function viewTaskAnalysis() {
+        const a = state.taskAnalysis || {};
+        const chips = nemoUniq([...nemoArr(a.keywords), ...nemoArr(a.expandedKeywords), ...nemoArr(a.bilingualTerms)]).slice(0, 24);
+        const hasData = state.nemoRows.length > 0;
+        const done = state.categories.length > 0;
+        return `<div class="page-top px-4 dock-space animate-fade-in">
+          ${subHeader("과제 특성 분석", 1, done ? 2 : null)}
+          <h2 class="t-h1 text-slate-900 mb-3">과제를 이렇게 해석했습니다</h2>
+          <p class="t-small text-slate-600 mb-8">이 해석이 실제 데이터에서 후보를 찾는 검색 기준이 됩니다. 어긋난 부분이 있으면 아래에서 다시 분석해 주세요.</p>
+
+          ${nemoReconnectBanner()}
+
+          <section class="bg-white border-2 border-slate-300 rounded-3xl shadow-md mb-6 overflow-hidden">
+            ${nemoAnalysisRow(1, "핵심 목적", a.researchIntent)}
+            ${nemoAnalysisRow(2, "주요 탐색 영역", a.importantContexts)}
+            ${nemoAnalysisRow(3, "관련 사용자 유형", a.personaTypes)}
+            ${nemoAnalysisRow(4, "예상되는 불편", a.painPoints)}
+            ${nemoAnalysisRow(5, "잠재 니즈", a.needs)}
+          </section>
+
+          <section class="bg-slate-900 rounded-3xl p-6 mb-6 shadow-lg">
+            <h3 class="t-label text-sky-300 mb-4">검색 확장 키워드</h3>
+            <div class="flex flex-wrap gap-2">
+              ${chips.length ? chips.map(c => `<span class="px-3 py-1.5 rounded-full bg-white/15 border border-white/30 t-meta font-bold text-white">${esc(c)}</span>`).join("") : `<span class="t-small text-slate-200">추출된 키워드가 없습니다.</span>`}
+            </div>
+          </section>
+
+          <section class="bg-blue-50 border-2 border-blue-300 rounded-3xl p-6 mb-2">
+            <h3 class="t-label text-blue-900 mb-3">후보 선정 방식</h3>
+            <p class="t-small text-blue-950 prose-ko">전체 ${(state.nemoRowCount || state.nemoRows.length).toLocaleString()}명을 위 키워드로 훑어 1차 후보 ${Math.min(CONFIG.NEMO.LOCAL_CANDIDATES, Math.max(state.nemoRowCount || state.nemoRows.length, 1))}명을 추린 뒤, AI가 각 후보를 GENERAL USER · LEAD USER · EXTREME USER · DESIRE-DRIVEN USER 네 유형으로 분류하고 유형별로 3명씩 총 12명을 선정합니다.</p>
+          </section>
+
+          ${instructionBox("task-instruction", "Actions.analyzeTask(document.getElementById('task-instruction').value)", "예: 1인 가구 관점을 더 강조해 주세요", "과제 특성 다시 분석")}
+
+          ${dock(primaryBtn(hasData ? (done ? "후보 12명 다시 선정하기" : "실제 데이터에서 12명 선정하기") : "데이터를 먼저 불러와 주세요", "Actions.selectNemoCandidates()", !hasData))}
+        </div>`;
+      }
+
+      // 2단계 타겟 카드에 붙는 원본 데이터 블록 (네모트론 출신 타겟에만 표시)
+      function nemoPersonaExtra(p) {
+        const raw = (Array.isArray(p.nemoRaw) && p.nemoRaw.length) ? p.nemoRaw : (Array.isArray(p.nemoEvidence) ? p.nemoEvidence : []);
+        return `
+          <div class="mt-5 bg-sky-50 border-2 border-sky-400 rounded-2xl p-5">
+            <div class="flex items-center justify-between gap-2 mb-3">
+              <span class="t-label text-sky-900">네모트론 원본</span>
+              ${Number.isFinite(p.nemoScore) ? `<span class="t-meta font-bold px-3 py-1 bg-sky-700 text-white rounded-lg flex-shrink-0">적합도 ${p.nemoScore}</span>` : ""}
+            </div>
+            <p class="t-small text-slate-900 mb-1"><b>${esc(p.nemoRealName || "이름 확인 필요")}</b>${p.nemoMeta ? ` · ${esc(p.nemoMeta)}` : ""}</p>
+            ${p.nemoReason ? `<p class="t-small text-sky-950 prose-ko">${esc(p.nemoReason)}</p>` : ""}
+            ${raw.length ? `<details class="mt-3 border-t-2 border-sky-200 pt-3">
+              <summary class="t-small font-bold text-sky-900 cursor-pointer py-1 flex items-center gap-2"><i data-lucide="scan-search" class="w-5 h-5"></i>네모트론 데이터의 원문 보기</summary>
+              <div class="mt-3">
+                <button type="button" onclick="Actions.copyNemoRaw('${escAttr(p.id)}')"
+                  class="w-full mb-3 py-3.5 rounded-xl bg-sky-700 text-white font-bold t-small flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
+                  <i data-lucide="copy" class="w-5 h-5"></i>이 원문을 클립보드에 복사
+                </button>
+                <div class="space-y-2 max-h-[26rem] overflow-y-auto">
+                  ${raw.map(e => `<div class="bg-white border-2 border-sky-200 rounded-xl px-4 py-3">
+                    <span class="block t-meta font-bold text-sky-900 mb-0.5">${esc(e.field)}</span>
+                    <span class="block t-meta text-slate-800 prose-ko">${esc(e.value)}</span>
+                  </div>`).join("")}
+                </div>
+              </div>
+            </details>` : ""}
+          </div>`;
+      }
+
+      // 현재 타겟 목록이 실제 데이터에서 나온 것인지 판단
+      function nemoActive() {
+        return state.personaSource === "nemotron" && !!state.taskAnalysis;
+      }
+
+      // 주제 화면 하단 버튼 — 데이터 소스에 따라 다음 행동이 달라집니다.
+      function nemoTopicDock() {
+        if (state.personaSource !== "nemotron") {
+          return primaryBtn(state.categories.length ? "사용자 타겟 12명 다시 제안하기" : "사용자 타겟 12명 제안하기", "Actions.generatePersonas()");
+        }
+        const hasData = state.nemoRows.length > 0;
+        const back = state.taskAnalysis ? `<div class="mb-3">${secondaryBtn("이전 과제 분석 결과 보기", "setState({step:101})", "file-search")}</div>` : "";
+        return back + primaryBtn(hasData ? "과제 특성 분석하기" : "데이터를 먼저 불러와 주세요", "Actions.analyzeTask()", !hasData);
+      }
+
+      // 주제 화면에 얹히는 데이터 소스 선택 + 업로드 패널
+
+
+
+      // 2단계 타겟 카드에 붙는 원본 근거 블록 (네모트론 출신 타겟에만 표시)
+
+      function viewTopic() {
+        return `<div class="page-top px-4 dock-space animate-fade-in">
+          ${header("주제 설정", 0, (state.personaSource === "nemotron" && state.taskAnalysis) ? 101 : undefined)}
+          <h2 class="t-h1 text-slate-900 mb-3">어떤 과제를 진행하고 싶으신가요?</h2>
+          <p class="t-small text-slate-600 mb-8">해결하려는 문제나 타겟 시장을 구체적으로 적을수록 결과가 정확해집니다.</p>
+          <label for="topic-input" class="sr-only">리서치 주제</label>
+          <textarea id="topic-input" oninput="setDraft('topic', this.value)" rows="6"
+            class="w-full p-5 bg-white border-2 border-slate-400 rounded-3xl shadow-md t-body text-slate-900 outline-none focus:border-blue-700 resize-none placeholder:text-slate-500"
+            placeholder="예: 해외 여행 계획 시 정보의 파편화로 피로를 느끼는 1인 가구 직장인">${esc(draftOr("topic", state.researchTopic))}</textarea>
+          ${nemoReconnectBanner()}
+          ${nemoSourcePanel()}
+          ${dock(nemoTopicDock())}
+        </div>`;
+      }
+
+      function viewPersonas() {
+        const catTotal = state.categories.length;
+        const cats = state.categories.map((cat, ci) => {
+          const m = String(cat.name).match(/^\s*(.+?)\s*\(([^)]+)\)\s*$/);
+          const ko = m ? m[1] : cat.name;
+          const en = m ? m[2] : "";
+          return `
+          <section class="mb-10 animate-fade-in">
+            <div class="rounded-3xl overflow-hidden border-2 border-slate-900 shadow-lg mb-4">
+              <div class="bg-slate-900 px-6 py-5 flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <span class="block t-meta font-bold text-sky-300 tracking-widest mb-1">${esc((en || ko).toUpperCase())}</span>
+                  <h3 class="t-h2 text-white">${esc(ko)}</h3>
+                </div>
+                <span class="t-meta font-bold text-white bg-white/20 border border-white/40 px-3 py-1.5 rounded-xl flex-shrink-0">${cat.personas.length}명</span>
+              </div>
+              ${cat.desc ? `<div class="bg-white px-6 py-4"><p class="t-small text-slate-800 prose-ko">${esc(cat.desc)}</p></div>` : ""}
+            </div>
+            <div class="space-y-5">
+              ${cat.personas.map((p, pi) => `
+                <article class="bg-white rounded-3xl border-2 border-slate-400 shadow-lg overflow-hidden">
+                  <div class="flex items-start gap-3 px-6 pt-6">
+                    <span class="w-11 h-11 rounded-2xl bg-slate-900 text-white font-bold t-h3 flex items-center justify-center flex-shrink-0">${ci + 1}-${pi + 1}</span>
+                    <h4 class="t-h3 text-slate-900 flex-1 min-w-0 pt-1">${esc(p.name)}</h4>
+                  </div>
+                  <div class="px-6 pt-4 pb-6">
+                    <p class="t-body text-slate-800 prose-ko mb-5">${esc(p.description)}</p>
+                    <div class="bg-blue-50 border-2 border-blue-300 rounded-2xl p-5">
+                      <h5 class="t-label text-blue-900 mb-2">핵심 니즈</h5>
+                      <p class="t-small text-slate-900 prose-ko">${esc(p.needs)}</p>
+                    </div>
+                    ${p.source === "nemotron" ? nemoPersonaExtra(p) : ""}
+                  </div>
+                </article>`).join("")}
+            </div>
+          </section>`;
+        }).join("");
+
+        const manual = state.manualPersonas.length ? `
+          <section class="mb-10">
+            <div class="bg-slate-900 rounded-3xl p-6 mb-4">
+              <h3 class="t-h3 text-white flex items-center gap-2"><span class="w-1.5 h-6 bg-sky-400 rounded-full"></span>사용자 직접 추가</h3>
+            </div>
+            <div class="space-y-4">
+              ${state.manualPersonas.map(p => `
+                <article class="bg-white rounded-[2rem] p-6 border-2 border-slate-300 shadow-md relative">
+                  <button type="button" aria-label="${escAttr(p.name)} 삭제" onclick="Actions.removeManualPersona('${escAttr(p.id)}')"
+                    class="absolute top-5 right-5 p-2.5 rounded-full bg-slate-50 text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors">
+                    <i data-lucide="trash-2" class="w-5 h-5"></i>
+                  </button>
+                  <h4 class="t-h3 text-slate-900 mb-3 pr-12">${esc(p.name)}</h4>
+                  <p class="t-body text-slate-700 prose-ko">${esc(p.description)}</p>
+                </article>`).join("")}
+            </div>
+          </section>` : "";
+
+        return `<div class="page-top px-4 dock-space animate-fade-in">
+          ${header("타겟 제안", nemoActive() ? 101 : 1)}
+          <h2 class="t-h1 text-slate-900 mb-3">핵심 인터뷰 타겟을 제안합니다</h2>
+          <p class="t-small text-slate-600 mb-8">${nemoActive() ? `GENERAL · LEAD · EXTREME · DESIRE-DRIVEN 네 개 카테고리로, 업로드한 데이터 ${(state.nemoRowCount || 0).toLocaleString()}명에서 12명을 선정했습니다.` : "GENERAL · LEAD · EXTREME · DESIRE-DRIVEN 네 개 카테고리로 12명을 구성했습니다. 아래 지시 입력으로 목록을 다시 만들 수 있습니다."}</p>
+          ${nemoReconnectBanner()}
+          ${cats}
+          ${manual}
+
+          <section class="bg-white border-2 border-slate-300 rounded-3xl p-6 shadow-md">
+            <h3 class="t-label text-slate-600 mb-4 flex items-center gap-2"><i data-lucide="pen-tool" class="w-5 h-5"></i> 직접 타겟 추가</h3>
+            <label for="manual-p-name" class="sr-only">타겟 이름</label>
+            <input type="text" id="manual-p-name" value="${escAttr(draft("manual-p-name"))}" oninput="setDraft('manual-p-name', this.value)"
+              class="w-full p-4 bg-white border-2 border-slate-400 rounded-2xl t-small text-slate-900 outline-none focus:border-blue-700 mb-3 placeholder:text-slate-500"
+              placeholder="이름 및 특징 (예: 프로 출장러 김철수)">
+            <label for="manual-p-desc" class="sr-only">타겟 설명</label>
+            <textarea id="manual-p-desc" rows="4" oninput="setDraft('manual-p-desc', this.value)"
+              class="w-full p-4 bg-white border-2 border-slate-400 rounded-2xl t-small text-slate-900 outline-none focus:border-blue-700 resize-none mb-3 placeholder:text-slate-500"
+              placeholder="상세 설명과 니즈를 입력하세요">${esc(draft("manual-p-desc"))}</textarea>
+            <button type="button" onclick="Actions.addManualPersona()" class="w-full py-4 rounded-2xl bg-slate-800 text-white font-bold t-small active:scale-[0.98] transition-all">목록에 추가</button>
+          </section>
+
+          ${instructionBox("persona-instruction", "Actions.generatePersonas(document.getElementById('persona-instruction').value)", "예: 40~60대 비중을 늘려 주세요", "타겟 수정 지시하기")}
+
+          ${dock(primaryBtn("인터뷰 대상 선택하기", "setState({step:3})"))}
+        </div>`;
+      }
+
+      function personaCard(p, index) {
+        const count = state.sessions.filter(s => s.personaId === p.id).length;
+        const on = state.selectedPersonaId === p.id;
+        return `<button type="button" onclick="Actions.selectPersona('${escAttr(p.id)}')" aria-pressed="${on}"
+          class="w-full text-left p-5 rounded-[2rem] border-2 transition-all bg-white ${on ? "border-blue-600 shadow-lg ring-2 ring-blue-600/15" : "border-slate-200 hover:border-blue-300 shadow-md"}">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <div class="flex items-center gap-3 min-w-0">
+              <span class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 font-bold t-meta ${on ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-700"}">${on ? '<i data-lucide="check" class="w-5 h-5"></i>' : esc(index)}</span>
+              <h3 class="t-h3 text-slate-900 truncate">${esc(p.name)}</h3>
+            </div>
+            ${count ? `<span class="t-meta font-bold px-2.5 py-1 bg-slate-800 text-white rounded-lg flex-shrink-0">인터뷰 ${count}회</span>` : ""}
+          </div>
+          <p class="t-small text-slate-700 prose-ko pl-12 line-clamp-3">${esc(p.description)}</p>
+        </button>`;
+      }
+
+      function viewSelectPersona() {
+        const groups = state.categories.map(cat => `
+          <div class="mb-8">
+            <h3 class="t-h3 text-slate-800 mb-4 flex items-center gap-2"><span class="w-1.5 h-5 bg-blue-600 rounded-full"></span>${esc(cat.name)}</h3>
+            <div class="space-y-3">${cat.personas.map((p, i) => personaCard(p, i + 1)).join("")}</div>
+          </div>`).join("");
+
+        const manual = state.manualPersonas.length ? `
+          <div class="mb-8">
+            <h3 class="t-h3 text-slate-800 mb-4 flex items-center gap-2"><span class="w-1.5 h-5 bg-sky-500 rounded-full"></span>사용자 직접 추가</h3>
+            <div class="space-y-3">${state.manualPersonas.map((p, i) => personaCard(p, i + 1)).join("")}</div>
+          </div>` : "";
+
+        const chosen = findPersona(state.selectedPersonaId);
+        return `<div class="page-top px-4 dock-space animate-fade-in">
+          ${header("대상 선택", 2)}
+          <h2 class="t-h1 text-slate-900 mb-3">누구와 먼저 대화를 나눌까요?</h2>
+          <p class="t-small text-slate-600 mb-3">이미 인터뷰한 타겟도 다시 선택해 새 인터뷰를 진행할 수 있습니다.</p>
+          ${sessionBadge()}
+          ${groups}${manual}
+          ${dock(`
+            ${chosen ? `<p class="t-meta text-slate-600 mb-3 truncate">선택한 타겟 · ${esc(chosen.name)}</p>` : ""}
+            ${primaryBtn(chosen ? "질문 리스트 생성" : "타겟을 선택해 주세요", "Actions.generateSurveys()", !chosen)}
+          `)}
+        </div>`;
+      }
+
+      function viewQuestions() {
+        const selCount = state.selectedQuestionIds.length;
+        const body = state.surveys.map(s => `
+          <section class="bg-white rounded-[2rem] px-4 py-5 border-2 border-slate-300 shadow-md mb-6">
+            <h3 class="t-h3 text-slate-900 mb-4 flex items-center gap-2 px-1">
+              <span class="w-1.5 h-5 ${s.source === "manual" ? "bg-sky-500" : "bg-blue-600"} rounded-full"></span>${esc(s.title)}
+            </h3>
+            <div class="space-y-2.5">
+              ${s.questions.map(q => {
+                const on = state.selectedQuestionIds.includes(q.id);
+                if (state.editingQuestionId === q.id) {
+                  return `<div class="px-3.5 py-3.5 rounded-2xl border-2 border-blue-500 bg-blue-50">
+                    <label for="qedit" class="sr-only">질문 수정</label>
+                    <textarea id="qedit" rows="3" oninput="setDraft('qedit', this.value)"
+                      class="w-full p-3 rounded-xl border border-blue-300 bg-white t-small text-slate-900 outline-none focus:border-blue-600 resize-none mb-3">${esc(draft("qedit"))}</textarea>
+                    <div class="flex gap-2">
+                      <button type="button" onclick="Actions.saveQuestionEdit('${escAttr(q.id)}')" class="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold t-meta active:scale-95 transition-all">수정 완료</button>
+                      <button type="button" onclick="Actions.cancelQuestionEdit()" class="px-5 py-3 rounded-xl bg-white border border-slate-300 text-slate-700 font-bold t-meta">취소</button>
+                    </div>
+                  </div>`;
+                }
+                return `<div class="px-3.5 py-3.5 rounded-2xl border-2 transition-all flex items-start ${on ? "border-blue-600 bg-blue-50" : "border-slate-200 bg-slate-50"}">
+                  <button type="button" onclick="Actions.toggleQuestion('${escAttr(q.id)}')" aria-pressed="${on}" class="flex-1 flex gap-2.5 items-start text-left min-w-0">
+                    <span class="w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-1 ${on ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 bg-white text-transparent"}"><i data-lucide="check" class="w-4 h-4"></i></span>
+                    <span class="t-small ${on ? "text-blue-900 font-bold" : "text-slate-700"} prose-ko">${esc(q.text)}</span>
+                  </button>
+                </div>`;
+              }).join("")}
+            </div>
+          </section>`).join("");
+
+        const persona = findPersona(state.selectedPersonaId);
+        return `<div class="page-top px-4 dock-space animate-fade-in">
+          ${header("질문 설계", 3)}
+          <h2 class="t-h1 text-slate-900 mb-3">핵심 질문을 골라주세요</h2>
+          <p class="t-small text-slate-600 mb-5">${persona ? esc(persona.name) + "에게" : "선택한 타겟에게"} 물어볼 질문입니다. 필요한 질문을 골라 주세요.</p>
+          <div class="flex gap-3 mb-6">
+            <button type="button" onclick="Actions.selectAllQuestions()" class="t-meta font-bold text-blue-700 underline underline-offset-4">전체 선택</button>
+            <button type="button" onclick="Actions.clearQuestions()" class="t-meta font-bold text-slate-600 underline underline-offset-4">선택 해제</button>
+          </div>
+          ${body}
+
+          <section class="bg-slate-100 border-2 border-slate-300 rounded-3xl p-6">
+            <h3 class="t-label text-slate-600 mb-4 flex items-center gap-2"><i data-lucide="plus-circle" class="w-5 h-5"></i> 직접 질문 추가</h3>
+            <label for="manual-q" class="sr-only">추가할 질문</label>
+            <textarea id="manual-q" rows="4" oninput="setDraft('manual-q', this.value)"
+              class="w-full p-4 bg-white border-2 border-slate-300 rounded-2xl t-small text-slate-900 outline-none focus:border-blue-600 resize-none mb-3 placeholder:text-slate-500"
+              placeholder="줄바꿈으로 구분하여 질문을 입력하세요">${esc(draft("manual-q"))}</textarea>
+            <button type="button" onclick="Actions.addManualQuestions()" class="w-full py-4 rounded-2xl bg-slate-800 text-white font-bold t-small active:scale-[0.98] transition-all">추가하기</button>
+          </section>
+
+          ${instructionBox("survey-instruction", "Actions.generateSurveys(document.getElementById('survey-instruction').value)", "예: 가격 민감도를 더 깊게 물어봐 주세요", "질문 수정 지시하기")}
+
+          ${dock(primaryBtn(selCount ? `질문 확정 (${selCount}개)` : "질문을 선택해 주세요", "setState({step:5})", selCount === 0))}
+        </div>`;
+      }
+
+      function viewConfirm() {
+        const persona = findPersona(state.selectedPersonaId);
+        const qs = selectedQuestions();
+        return `<div class="page-top px-4 dock-space animate-fade-in">
+          ${header("인터뷰 준비", 4)}
+          <div class="text-center mb-8">
+            <div class="w-20 h-20 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center mx-auto mb-5 border border-blue-200">
+              <i data-lucide="mic" class="w-10 h-10"></i>
+            </div>
+            <h2 class="t-h1 text-slate-900 mb-3">인터뷰 준비 완료</h2>
+            <p class="t-small text-slate-600">아래 타겟과 질문 ${qs.length}개로 가상 인터뷰를 진행합니다.</p>
+          </div>
+
+          <section class="bg-white rounded-[2rem] p-7 border-2 border-slate-300 shadow-md mb-6">
+            <div class="pb-5 mb-5 border-b-2 border-slate-300 text-center">
+              <h3 class="t-h2 text-blue-900">${esc(persona ? persona.name : "선택된 타겟 없음")}</h3>
+            </div>
+            ${scrollBox("confirm-q", qs.map((q, i) => `<div class="flex gap-3 bg-slate-100 border-2 border-slate-300 rounded-2xl p-4 mb-3 last:mb-0">
+                <span class="t-small font-bold text-blue-700 flex-shrink-0">Q${i + 1}.</span>
+                <p class="t-small text-slate-900 prose-ko">${esc(q.text)}</p>
+              </div>`).join(""), "21rem")}
+          </section>
+
+          ${dock(primaryBtn("대화 시작하기", "Actions.performInterview()", !persona || qs.length === 0))}
+        </div>`;
+      }
+
+      function qaCard(qa, i, opts) {
+        const on = opts.selectable && opts.selectedIds.includes(qa.id);
+        const inner = `
+          <div class="flex gap-3 mb-4 ${opts.selectable ? "pr-9" : ""}">
+            <span class="w-9 h-9 rounded-full ${qa.followUp ? "bg-sky-100 text-sky-700" : "bg-slate-100 text-slate-700"} font-bold flex items-center justify-center flex-shrink-0 t-meta">Q${i + 1}</span>
+            <p class="t-small font-bold text-slate-900 prose-ko pt-1">${esc(qa.q)}</p>
+          </div>
+          <div class="bg-slate-50 border-2 border-slate-300 rounded-2xl p-5">
+            <p class="t-body text-slate-700 prose-ko">${esc(qa.a)}</p>
+          </div>`;
+
+        if (!opts.selectable) {
+          return `<article class="p-6 rounded-[2rem] border-2 border-slate-200 bg-white shadow-md">${inner}</article>`;
+        }
+        return `<button type="button" onclick="Actions.toggleQa('${escAttr(qa.id)}')" aria-pressed="${on}"
+          class="w-full text-left p-6 rounded-[2rem] border-2 bg-white relative transition-all ${on ? "border-blue-600 shadow-md ring-2 ring-blue-600/15" : "border-slate-200 shadow-md"}">
+          <span class="absolute top-6 right-6 w-6 h-6 rounded-full border-2 flex items-center justify-center ${on ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 bg-white text-transparent"}"><i data-lucide="check" class="w-4 h-4"></i></span>
+          ${inner}
+        </button>`;
+      }
+
+      function viewInterview() {
+        const s = activeSession();
+        return `<div class="page-top px-4 dock-space animate-fade-in">
+          ${header("인터뷰 진행", 5)}
+          <h2 class="t-h1 text-slate-900 mb-3">가상 인터뷰 대화를 진행해 주세요</h2>
+          <p class="t-small text-slate-600 mb-8">${esc(s.personaName)}의 답변입니다. 추가 질문으로 대화를 더 깊게 이어갈 수 있습니다.</p>
+
+          <div class="space-y-5 mb-10">
+            ${s.qaPairs.map((qa, i) => qaCard(qa, i, { selectable: false })).join("")}
+          </div>
+
+          <section class="bg-slate-700 rounded-3xl p-6 shadow-xl">
+            <h3 class="t-label text-blue-200 mb-3">추가 질문하기</h3>
+            <div class="flex gap-2">
+              <label for="followup" class="sr-only">추가 질문</label>
+              <input type="text" id="followup" value="${escAttr(draft("followup"))}" oninput="setDraft('followup', this.value)"
+                class="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3.5 text-white t-small outline-none placeholder:text-slate-300 focus:border-blue-400"
+                placeholder="더 궁금한 점을 물어보세요">
+              <button type="button" aria-label="추가 질문 보내기" onclick="Actions.askFollowUp()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 rounded-xl active:scale-95 transition-all"><i data-lucide="send" class="w-5 h-5"></i></button>
+            </div>
+          </section>
+
+          ${dock(primaryBtn("인터뷰 결과 정리하기", "setState({step:7})"))}
+        </div>`;
+      }
+
+      function viewResult() {
+        const s = activeSession();
+        const selCount = s.selectedQaIds.length;
+        return `<div class="page-top px-4 dock-space animate-fade-in">
+          ${header("인터뷰 결과", 6)}
+          <h2 class="t-h1 text-slate-900 mb-3">중요한 인사이트를 선택해 주세요</h2>
+          <p class="t-small text-slate-600 mb-8">선택한 대화와 직접 작성한 인사이트를 바탕으로 핵심 가치를 추론합니다.</p>
+
+          <section class="bg-slate-900 rounded-[2rem] p-7 text-white mb-8 shadow-xl relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-40 h-40 bg-blue-500/30 blur-3xl rounded-full"></div>
+            <div class="relative">
+              <span class="inline-block bg-blue-600 t-meta font-bold px-3 py-1 rounded-full mb-3">SUMMARY</span>
+              <h3 class="t-h1 italic mb-4">${esc(s.personaName)}</h3>
+              <p class="t-small text-slate-200 prose-ko">${esc(s.summary || "요약이 제공되지 않았습니다.")}</p>
+            </div>
+          </section>
+
+          <div class="flex items-center justify-between gap-2 mb-4">
+            <p class="t-meta text-slate-600 flex-1">선택하지 않으면 전체 대화가 반영됩니다.</p>
+            <div class="flex gap-3 flex-shrink-0">
+              <button type="button" onclick="Actions.selectAllQa()" class="t-meta font-bold text-blue-700 underline underline-offset-4">전체 선택</button>
+              <button type="button" onclick="Actions.clearQa()" class="t-meta font-bold text-slate-600 underline underline-offset-4">선택 해제</button>
+            </div>
+          </div>
+
+          <div class="space-y-5 mb-10">
+            ${s.qaPairs.map((qa, i) => qaCard(qa, i, { selectable: true, selectedIds: s.selectedQaIds })).join("")}
+          </div>
+
+          ${s.keyInsights ? `<section class="bg-blue-600 rounded-[2rem] p-7 text-white mb-10 shadow-lg">
+            <h3 class="t-label text-blue-100 mb-4 flex items-center gap-2"><i data-lucide="zap" class="w-5 h-5 text-yellow-300"></i> AI Key Insights</h3>
+            <p class="t-small text-blue-50 prose-ko">${esc(s.keyInsights)}</p>
+          </section>` : ""}
+
+          <section class="bg-white border-2 border-blue-600 rounded-[2rem] p-6 shadow-md">
+            <h3 class="t-h3 text-slate-900 mb-3 flex items-center gap-2"><i data-lucide="lightbulb" class="w-5 h-5 text-amber-500"></i> 직접 발견한 인사이트</h3>
+            <p class="t-meta text-slate-600 mb-4">비워 두어도 괜찮습니다. 적어 두면 추론에 함께 반영됩니다.</p>
+            <label for="user-insight" class="sr-only">직접 발견한 인사이트</label>
+            <textarea id="user-insight" rows="6" oninput="setDraft('user-insight', this.value)"
+              class="w-full p-4 bg-white border-2 border-slate-400 rounded-2xl t-small text-slate-900 outline-none focus:border-blue-700 resize-none placeholder:text-slate-500"
+              placeholder="인터뷰를 통해 느낀 점이나 아이디어를 적어주세요">${esc(draftOr("user-insight", s.userInsight))}</textarea>
+          </section>
+
+          ${dock(`
+            <p class="t-meta text-slate-600 mb-3">${selCount ? `대화 ${selCount}개 선택됨` : "전체 대화 반영"} · ${esc(s.inferencePerspective)}</p>
+            <div class="mb-3">${secondaryBtn("다른 타겟 인터뷰하기", "Actions.interviewAnotherTarget()", "users")}</div>
+            ${primaryBtn("핵심 가치 추론하기", "Actions.generateInferences()")}
+          `)}
+        </div>`;
+      }
+
+      function viewInferences() {
+        const s = activeSession();
+        return `<div class="page-top px-4 dock-space animate-fade-in">
+          ${header("핵심 가치 추론", 7)}
+          <h2 class="t-h1 text-slate-900 mb-3">인터뷰 기반 핵심 가치 추론</h2>
+          <p class="t-small text-slate-600 mb-8">${esc(s.inferencePerspective)}에서 도출했습니다. 가장 중요한 가치 하나를 선택해 주세요.</p>
+
+          <div class="space-y-4 mb-10">
+            ${s.inferences.map((inf, i) => {
+              const on = s.selectedInferenceId === inf.id;
+              return `<button type="button" onclick="Actions.selectInference('${escAttr(inf.id)}')" aria-pressed="${on}"
+                class="w-full text-left p-6 rounded-[2rem] border-2 bg-white relative transition-all ${on ? "border-blue-600 shadow-md ring-2 ring-blue-600/15" : "border-slate-200 shadow-md"}">
+                <span class="absolute top-6 right-6 w-6 h-6 rounded-full border-2 flex items-center justify-center ${on ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 bg-white text-transparent"}"><i data-lucide="check" class="w-4 h-4"></i></span>
+                <span class="inline-block px-3 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg t-meta font-bold mb-3">INFERENCE ${i + 1}</span>
+                <h3 class="t-h3 text-slate-900 mb-3 pr-9">${esc(inf.title)}</h3>
+                <p class="t-body text-slate-700 prose-ko">${esc(inf.description)}</p>
+              </button>`;
+            }).join("")}
+          </div>
+
+          ${branchSummary(s)}
+
+          ${dock(`
+            ${perspectiveRow(s.inferencePerspective, p => `Actions.generateInferences('${p}')`)}
+            <p class="t-meta text-slate-600 mb-3">관점을 누르면 그 관점으로 다시 추론합니다. 이전 결과는 분기 기록으로 보존됩니다.</p>
+            ${primaryBtn(s.selectedInferenceId ? "선택한 추론으로 컨셉 도출" : "추론을 선택해 주세요", "Actions.generateConcepts()", !s.selectedInferenceId)}
+          `)}
+        </div>`;
+      }
+
+      function viewConcepts() {
+        const s = activeSession();
+        const inf = s.inferences.find(i => i.id === s.selectedInferenceId);
+        return `<div class="page-top px-4 dock-space animate-fade-in">
+          ${header("디자인 컨셉", 8)}
+          <h2 class="t-h1 text-slate-900 mb-3">핵심 추론 기반 디자인 컨셉</h2>
+          ${inf ? `<p class="t-small text-slate-600 mb-2">기반 추론 · ${esc(inf.title)}</p>` : ""}
+          <p class="t-small text-slate-600 mb-8">${esc(s.conceptPerspective)}에서 도출했습니다. 시나리오로 발전시킬 컨셉 하나를 선택해 주세요.</p>
+
+          <div class="space-y-4 mb-10">
+            ${s.concepts.map((c, i) => {
+              const on = s.selectedConceptId === c.id;
+              return `<button type="button" onclick="Actions.selectConcept('${escAttr(c.id)}')" aria-pressed="${on}"
+                class="w-full text-left p-6 rounded-[2rem] border-2 bg-white relative transition-all ${on ? "border-blue-600 shadow-md ring-2 ring-blue-600/15" : "border-slate-200 shadow-md"}">
+                <span class="absolute top-6 right-6 w-6 h-6 rounded-full border-2 flex items-center justify-center ${on ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 bg-white text-transparent"}"><i data-lucide="check" class="w-4 h-4"></i></span>
+                <span class="inline-block px-3 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg t-meta font-bold mb-3">CONCEPT ${i + 1}</span>
+                <h3 class="t-h3 text-slate-900 mb-3 pr-9">${esc(c.title)}</h3>
+                <div class="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-4">
+                  <h4 class="t-label text-blue-700 mb-1">핵심 가치</h4>
+                  <p class="t-small text-blue-900 prose-ko">${esc(c.coreValue)}</p>
+                </div>
+                <p class="t-body text-slate-700 prose-ko">${esc(c.description)}</p>
+              </button>`;
+            }).join("")}
+          </div>
+
+          ${branchSummary(s)}
+
+          <div class="mb-10">${secondaryBtn("다른 타겟 인터뷰하기", "Actions.interviewAnotherTarget()", "users")}</div>
+
+          ${dock(`
+            ${perspectiveRow(s.conceptPerspective, p => `Actions.generateConcepts('${p}')`)}
+            ${primaryBtn(s.selectedConceptId ? "컨셉 시나리오 보기" : "컨셉을 선택해 주세요", "Actions.generateScenario()", !s.selectedConceptId)}
+          `)}
+        </div>`;
+      }
+
+      function branchSummary(s) {
+        if (!s.branches.length) return "";
+        return `<section class="mb-10">
+          <h3 class="t-label text-slate-600 mb-3">이전에 탐색한 분기 ${s.branches.length}건 · 리포트에 전체 내용이 포함됩니다</h3>
+          <div class="space-y-2">
+            ${s.branches.map(b => `<div class="bg-slate-100 border-2 border-slate-300 rounded-2xl p-4">
+              <p class="t-meta font-bold text-slate-600 mb-1">${esc(b.reason)}</p>
+              <p class="t-small text-slate-800">${esc(b.selectedConceptTitle || b.selectedInferenceTitle || (b.concepts[0] && b.concepts[0].title) || (b.inferences[0] && b.inferences[0].title) || "기록 보존됨")}</p>
+            </div>`).join("")}
+          </div>
+        </section>`;
+      }
+
+      function viewScenario() {
+        const s = activeSession();
+        const c = s.concepts.find(x => x.id === s.selectedConceptId);
+        return `<div class="page-top px-4 dock-space animate-fade-in">
+          ${header("컨셉 시나리오", 9)}
+          <h2 class="t-h1 text-slate-900 mb-3">사용자 경험 시나리오</h2>
+          <p class="t-small text-slate-600 mb-8">${c ? esc(c.title) : "선택한 컨셉"}이 적용된 ${esc(s.personaName)}의 하루입니다.</p>
+
+          <section class="bg-white rounded-[2rem] p-7 border-2 border-slate-300 shadow-md mb-8">
+            <div class="flex items-center justify-between gap-3 mb-4">
+              <h3 class="t-label text-slate-600">SCENARIO</h3>
+              <button type="button" aria-label="시나리오 복사" onclick="Actions.copyScenario()" class="p-2.5 rounded-full bg-slate-100 text-slate-700 hover:text-blue-700 hover:bg-blue-50 transition-colors flex-shrink-0">
+                <i data-lucide="copy" class="w-5 h-5"></i>
+              </button>
+            </div>
+            <p class="t-body text-slate-800 prose-ko">${esc(s.scenario)}</p>
+          </section>
+
+          ${state.sessions.length > 1 ? `<section class="mb-8">
+            <h3 class="t-label text-slate-600 mb-3">이 프로젝트의 인터뷰 ${state.sessions.length}건</h3>
+            <div class="space-y-2">
+              ${state.sessions.map(x => `<button type="button" onclick="Actions.openSession('${escAttr(x.id)}')"
+                class="w-full text-left px-4 py-3 rounded-2xl border ${x.id === s.id ? "border-blue-600 bg-blue-50" : "border-slate-200 bg-white"} transition-all">
+                <span class="block t-small font-bold text-slate-900 truncate">${esc(x.personaName)}</span>
+                <span class="block t-meta text-slate-600">${esc(nowLabel(x.createdAt))} · ${x.scenario ? "시나리오 완료" : x.concepts.length ? "컨셉 도출" : x.inferences.length ? "추론 완료" : "인터뷰 완료"}</span>
+              </button>`).join("")}
+            </div>
+          </section>` : ""}
+
+          <div class="mb-6">
+            ${secondaryBtn("리포트를 파일로 저장", "Actions.downloadReport()", "download")}
+          </div>
+
+          ${dock(`
+            ${primaryBtn("전체 리포트 복사하기", "Actions.copyReport()")}
+          `)}
+        </div>`;
+      }
+
+      /* =========================================================
+         16. 오버레이
+         ========================================================= */
+      function overlays() {
+        let html = "";
+
+        if (state.isAnalyzing) {
+          html += `<div class="fixed inset-0 z-[10000] bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center px-8 text-center max-w-[430px] mx-auto animate-fade-in" role="status" aria-live="polite">
+            <div class="spinner-ring mb-8" role="presentation"></div>
+            <h2 class="t-h2 text-slate-900 mb-2">${esc(state.loadingMsg)}</h2>
+            <p class="t-small text-slate-600 mb-8">최대 1분 정도 걸릴 수 있습니다</p>
+            <button type="button" onclick="Actions.cancel()" class="px-7 py-3.5 rounded-2xl border-2 border-slate-300 text-slate-700 font-bold t-small hover:bg-slate-50 active:scale-95 transition-all">취소</button>
+          </div>`;
+        }
+
+        if (state.errorMsg) {
+          html += `<div class="fixed inset-0 z-[10002] flex items-center justify-center bg-black/50 px-6 backdrop-blur-sm" role="alertdialog" aria-modal="true" aria-labelledby="err-title">
+            <div class="bg-white p-8 rounded-3xl w-full max-w-sm text-center shadow-2xl animate-scale-in">
+              <i data-lucide="alert-triangle" class="text-red-600 mx-auto mb-4 w-12 h-12"></i>
+              <h2 id="err-title" class="t-h3 text-slate-900 mb-6">${esc(state.errorMsg)}</h2>
+              <button type="button" onclick="setState({errorMsg:null})" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold t-small">확인</button>
+            </div>
+          </div>`;
+        }
+        return html;
+      }
+
+      /* =========================================================
+         17. 메인 렌더 — 예외가 나도 화면이 멈추지 않도록 방어
+         ========================================================= */
+      function captureUI() {
+        const el = document.activeElement;
+        const f = (el && el.id && (el.tagName === "INPUT" || el.tagName === "TEXTAREA"))
+          ? { id: el.id, start: el.selectionStart, end: el.selectionEnd } : null;
+        return { focus: f, scrollY: window.scrollY };
+      }
+      function restoreUI(snap, resetScroll) {
+        if (snap.focus) {
+          const el = document.getElementById(snap.focus.id);
+          if (el) {
+            el.focus({ preventScroll: true });
+            try { el.setSelectionRange(snap.focus.start, snap.focus.end); } catch (e) { /* range 미지원 타입 */ }
+          }
+        }
+        window.scrollTo(0, resetScroll ? 0 : snap.scrollY);
+      }
+
+      function fallback(backStep, msg) {
+        return `<div class="page-top px-6 min-h-screen">
+          <div class="bg-white border-2 border-slate-300 rounded-3xl p-8 text-center shadow-md">
+            <i data-lucide="compass" class="w-12 h-12 text-slate-500 mx-auto mb-4"></i>
+            <h2 class="t-h3 text-slate-900 mb-2">${esc(msg)}</h2>
+            <p class="t-small text-slate-600 mb-6">이전 단계로 돌아가 다시 실행해 주세요.</p>
+            ${primaryBtn("이전 단계로", `setState({step:${backStep}})`)}
+          </div>
+        </div>`;
+      }
+
+      function body() {
+        const s = activeSession();
+        switch (state.step) {
+          case -1: return viewAuth();
+          case 0:  return viewHome();
+          case 1:  return viewTopic();
+          case 101: return state.taskAnalysis ? viewTaskAnalysis() : fallback(1, "분석된 과제 특성이 없습니다.");
+          case 2:  return state.categories.length ? viewPersonas() : fallback(1, "제안된 타겟이 없습니다.");
+          case 3:  return (state.categories.length || state.manualPersonas.length) ? viewSelectPersona() : fallback(1, "선택할 타겟이 없습니다.");
+          case 4:  return state.surveys.length ? viewQuestions() : fallback(3, "생성된 인터뷰 질문이 없습니다.");
+          case 5:  return state.selectedQuestionIds.length ? viewConfirm() : fallback(4, "선택된 질문이 없습니다.");
+          case 6:  return (s && s.qaPairs.length) ? viewInterview() : fallback(5, "진행된 인터뷰가 없습니다.");
+          case 7:  return (s && s.qaPairs.length) ? viewResult() : fallback(5, "정리할 인터뷰 결과가 없습니다.");
+          case 8:  return (s && s.inferences.length) ? viewInferences() : fallback(7, "도출된 핵심 가치 추론이 없습니다.");
+          case 9:  return (s && s.concepts.length) ? viewConcepts() : fallback(8, "도출된 디자인 컨셉이 없습니다.");
+          case 10: return (s && s.scenario) ? viewScenario() : fallback(9, "작성된 컨셉 시나리오가 없습니다.");
+          default: return fallback(0, "요청한 화면을 찾을 수 없습니다.");
+        }
+      }
+
+      function render(resetScroll) {
+        const root = document.getElementById("root");
+        const snap = captureUI();
+        const shell = "w-full max-w-[430px] mx-auto bg-slate-100 min-h-screen relative overflow-x-hidden shadow-2xl";
+        let inner;
+        try {
+          inner = body();
+        } catch (err) {
+          // 여기서 예외가 나면 innerHTML 대입 자체가 실행되지 않아
+          // "버튼을 눌렀는데 아무 일도 일어나지 않는" 백지 상태가 된다.
+          console.error("render 실패:", err);
+          inner = fallback(0, "화면을 그리는 중 문제가 발생했습니다.");
+        }
+        try {
+          root.innerHTML = `<div class="${shell}">${inner}${overlays()}</div>`;
+          if (window.lucide && typeof lucide.createIcons === "function") lucide.createIcons();
+          syncLayout();
+          initScrollBoxes();
+        } catch (err) {
+          console.error("DOM 갱신 실패:", err);
+          root.innerHTML = `<div class="${shell}"><div class="p-8 t-body">화면을 표시할 수 없습니다. 새로고침해 주세요.</div></div>`;
+        }
+        restoreUI(snap, resetScroll);
+      }
+
+      /* =========================================================
+         18. 부팅
+         ========================================================= */
+      document.addEventListener("keydown", (e) => {
+        if (e.key !== "Escape") return;
+        if (state.errorMsg) setState({ errorMsg: null });
+        else if (state.isAnalyzing) Actions.cancel();
+        else if (state.editingQuestionId) Actions.cancelQuestionEdit();
+      });
+
+      setInterval(() => { try { persist(false); } catch (e) { console.warn("자동 저장 실패", e); } }, CONFIG.AUTOSAVE_MS);
+      window.addEventListener("beforeunload", () => { try { persist(false); } catch (e) { /* 무시 */ } });
+
+      const migrated = migrateLegacy();
+      render(true);
+      if (migrated) toast(`이전 버전 프로젝트 ${migrated}건을 가져왔습니다.`, "info");
+    })();
+  </script>
 </body>
 </html>
-<!-- redeploy -->
