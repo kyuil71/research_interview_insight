@@ -104,9 +104,13 @@
         // 네모트론(실제 사용자 데이터) 확장 설정
         NEMO: {
           MAX_FILE_BYTES: 50 * 1024 * 1024,
-          LOCAL_CANDIDATES: 60,   // 로컬 키워드 검색으로 추리는 1차 후보 수
-          BATCH: 20,              // AI 분류 1회 호출당 후보 수
-          PER_CATEGORY: 3         // 카테고리당 최종 선정 인원 (4 × 3 = 12명)
+          LOCAL_CANDIDATES: 84,   // 로컬 검색으로 추리는 1차 후보 수
+          POOL_BASE: 32,          // 그중 과제 적합도 상위군
+          POOL_PER_ARCHETYPE: 12, // 유형별 단서 상위군 (네 유형 각각)
+          BATCH: 12,              // AI 분류 1회 호출당 후보 수
+          PER_CATEGORY: 3,        // 카테고리당 최종 선정 인원 (4 × 3 = 12명)
+          REPLACE_CANDIDATES: 10, // 특정 타겟 교체 시 AI에게 보여 줄 대체 후보 수
+          POOL_CONSTRAINT: 30     // 전체 조건 지시가 있을 때 조건 우선으로 확보할 후보 수
         }
       };
 
@@ -135,10 +139,11 @@
 사용자를 다음 4가지 카테고리로 나누고, 각 카테고리별로 특성에 맞는 구체적인 페르소나를 3명씩(총 12명) 제안해 주세요.
 
 [카테고리 정의]
-1. 일반 사용자 (General User)
-2. 리드 사용자 (Lead User)
-3. 익스트림 사용자 (Extreme User)
-4. 디자이어 드리븐 사용자 (Desire-Driven User)
+${ARCHETYPE_SPEC}
+
+- GENERAL USER 3명은 이 주제의 제품·서비스를 실생활에서 직접 가장 자주 사용하는 대표 사용자(예: 세탁기·식기세척기라면 살림을 맡은 주부)를 먼저 배치해 주세요.
+- 각 카테고리의 3명은 반드시 위 "판단 기준"에 실제로 부합하는 인물이어야 하며, "categoryDesc"에는 그 유형의 정의와 조사 목적을 요약해 적어 주세요.
+- 각 페르소나의 "description"에는 그 사람이 왜 이 유형인지 드러나는 구체적인 행동을 반드시 포함해 주세요.
 
 [STRICT RULE]
 - 각 페르소나의 이름은 반드시 "콘텐츠 유목민: 30대 김민준"처럼 [수식어]: [연령/직업] [한국식 가상 이름] 형식으로 작성해 주세요.
@@ -248,43 +253,89 @@ Return: {"scenario":"상세 시나리오 본문"}`
          담당합니다. 위의 PROMPTS와 3단계 이후의 로직은 전혀 사용하지 않고,
          산출물의 형태(카테고리 4개 × 페르소나 3명)만 원본과 동일하게 맞춥니다.
          ========================================================= */
+      /* 네 가지 인터뷰 후보 유형의 정의 — 화면 표기와 모든 프롬프트가 이 정의 하나를 공유합니다. */
+      const ARCHETYPE_SPEC = `1. GENERAL USER (일반 사용자)
+- 정의: 과제의 제품·서비스를 직접, 그리고 가장 자주 사용하는 대표 사용자이면서 그 사용 방식이 평균적·일상적인 사람입니다. 시장의 다수를 대표하는 행동과 불편, 기대 수준을 파악하는 데 적합합니다.
+- 판단 기준: 무엇보다 먼저, 과제의 제품·서비스를 실생활에서 직접 그리고 가장 자주 사용하는 대표 사용자여야 합니다. 그 위에서 사용 빈도와 방식이 평균 범위에 있고, 기본 기능 위주로 무난하게 사용합니다. 스스로 개조하거나 극단적인 사용 조건에 놓여 있지 않습니다.
+- 우선순위: 세탁기·식기세척기라면 매일 집안일을 맡아 하는 주부(전업주부·가사 담당자)처럼, 그 제품을 가장 일상적으로 다루는 사람이 1순위입니다. 제품과 접점이 거의 없거나 다른 사람이 대신 사용해 주는 사람은 GENERAL USER가 아닙니다.
+- 예시: TV를 하루 2~3시간 시청하며 리모컨의 기본 기능만 쓰는 가정 사용자, 세탁기의 표준코스를 주로 쓰는 주부
+- 조사 목적: 대부분의 사용자는 어떻게 사용하고 무엇을 불편해하는가
+
+2. LEAD USER (선도 사용자)
+- 정의: 일반 사용자보다 미래의 니즈를 먼저 경험하는 사용자입니다. 앞으로 시장에서 일반화될 니즈를 남보다 먼저 겪고, 그 해결에서 큰 편익을 얻습니다.
+- 판단 기준: 기존 제품이 자신의 요구를 충족하지 못해 스스로 새로운 방법을 만들거나 개조·조합·자동화한 흔적이 있어야 합니다. 신기술을 먼저 도입하고 해당 영역의 전문성이 높습니다.
+- 예시: AI가 보편화되기 전부터 여러 AI 서비스를 연결해 자기만의 업무 자동화 시스템을 만든 사용자, 산악 주행을 즐기려고 자전거를 직접 개조했던 초기 산악자전거 사용자
+- 조사 목적: 앞으로 일반 사용자도 필요로 하게 될 것은 무엇인가
+- 주의: 단순히 관심이 많거나 최신 제품을 구매한 사람이 아니라, 직접 만들거나 바꿔 쓴 근거가 데이터에 있어야 합니다.
+
+3. EXTREME USER (극단 사용자)
+- 정의: 특정 행동이나 사용 조건이 평균에서 매우 벗어난 사용자입니다. 평균 밖의 사람을 통해 특이한 행동, 우회 방법(workaround), 숨은 니즈를 발견합니다.
+- 판단 기준: 사용량이 극단적으로 많은 사람뿐 아니라 거의 사용하지 않는 사람도 모두 해당합니다. 신체·감각·연령·시간·환경·경제적 제약이 극단적인 경우도 포함합니다.
+- 예시: 하루 10시간 이상 TV를 켜 두는 사람 또는 TV를 거의 보지 않는 사람, 매일 세탁기를 여러 번 돌리는 다자녀 가정 또는 세탁기를 거의 쓰지 않는 1인 가구, 스마트폰 기능을 거의 사용하지 못하는 실버세대
+- 조사 목적: 극단적인 상황에서 어떤 문제가 증폭되어 나타나는가
+- 주의: 과다 사용 쪽에만 몰리지 않도록, 가능하면 과다 사용자와 과소·비사용자를 함께 포함해 주세요.
+
+4. DESIRE-DRIVEN USER (욕망·열망 중심 사용자)
+- 정의: 현재의 사용량보다 강한 욕망(Desire), 열망(Aspiration), 동기(Motivation)가 중요한 사용자입니다.
+- 판단 기준: 아직 해결책이 없더라도 "이런 경험을 하고 싶다"는 바람이 뚜렷합니다. 기능적 필요보다 정체성, 취향, 미감, 되고 싶은 삶의 모습이 선택을 이끕니다.
+- 예시: TV를 시청 기능보다 인테리어 디자인 요소로 더 중요하게 여기는 사람, TV로 홈쇼핑에 몰입하는 사람
+- 조사 목적: 사람들이 궁극적으로 어떤 경험과 삶을 원하는가
+- 주의: 사용량이 많다는 이유만으로 이 유형에 넣지 마세요. 욕망이나 지향의 방향이 데이터에서 뚜렷하게 읽혀야 합니다.`;
+
       const ARCHETYPES = [
         {
           key: "general",
           short: "GENERAL USER",
           name: "일반 사용자 (General User)",
-          desc: "과제 영역을 보통의 빈도와 방식으로 경험하는 다수 사용자입니다. 보편적인 기대치와 기본 사용 맥락을 확인할 수 있습니다.",
-          guide: "Mainstream user with typical frequency, ordinary constraints, and average expertise. Represents the majority experience."
+          desc: "제품이나 서비스를 평균적·일상적인 방식으로 사용하는 다수 사용자입니다. 시장 다수를 대표하는 행동과 불편, 기대 수준을 확인합니다.",
+          purpose: "대부분의 사용자는 어떻게 사용하고 무엇을 불편해하는가",
+          guide: "Average, everyday usage. Typical frequency, basic features only, no self-modification, no extreme conditions. Represents the market majority.",
+          signals: ["보통", "일반", "가끔", "주로", "기본", "표준", "평범", "무난", "익숙한 기능", "average", "typical", "regular", "casual", "everyday"]
         },
         {
           key: "lead",
           short: "LEAD USER",
           name: "리드 사용자 (Lead User)",
-          desc: "시장보다 앞서 문제를 겪고 스스로 해법을 만들어 쓰는 사용자입니다. 앞으로 다수에게 확산될 니즈를 미리 보여 줍니다.",
-          guide: "Ahead of the market. Early adopter, power user, builds own workarounds or advanced tooling, high domain expertise."
+          desc: "일반 사용자보다 미래의 니즈를 먼저 경험하고, 기존 제품이 부족해 스스로 방법을 만들거나 개조하는 사용자입니다. 앞으로 확산될 니즈를 미리 보여 줍니다.",
+          purpose: "앞으로 일반 사용자도 필요로 하게 될 것은 무엇인가",
+          guide: "Experiences tomorrow's needs today. Builds own workarounds, modifies/combines/automates tools because existing products fall short. High expertise, early adoption.",
+          signals: ["직접 만들", "개조", "자작", "커스텀", "자동화", "스크립트", "연동", "얼리어답터", "베타", "전문가", "덕후", "튜닝", "DIY", "maker", "tinker", "automation", "custom", "early adopter", "power user", "workaround", "prototype", "hack"]
         },
         {
           key: "extreme",
           short: "EXTREME USER",
           name: "익스트림 사용자 (Extreme User)",
-          desc: "사용 강도나 제약 조건이 극단에 있는 사용자입니다. 일반 조건에서는 드러나지 않는 한계와 불편을 선명하게 보여 줍니다.",
-          guide: "Extreme frequency, intensity, scale, or constraint. Edge conditions such as heavy professional use, severe time/physical/environmental limits, or near-zero usage."
+          desc: "사용량이나 사용 조건이 평균에서 크게 벗어난 사용자입니다. 아주 많이 쓰는 사람과 거의 쓰지 않는 사람 모두 포함하며, 극단에서 증폭되는 문제를 드러냅니다.",
+          purpose: "극단적인 상황에서 어떤 문제가 증폭되어 나타나는가",
+          guide: "Far outside the average on either end. Very heavy use OR near-zero use. Includes severe physical, sensory, age, time, environmental, or economic constraints.",
+          signals: ["매일", "하루 종일", "여러 번", "거의 안", "쓰지 않", "사용하지 않", "처음", "어려워", "불가능", "다자녀", "1인 가구", "고령", "실버", "장애", "교대 근무", "야간", "heavy", "never", "rarely", "all day", "disability", "elderly", "shift work"]
         },
         {
           key: "desire",
           short: "DESIRE-DRIVEN USER",
           name: "디자이어 드리븐 사용자 (Desire-Driven User)",
-          desc: "기능적 필요보다 취향, 정체성, 되고 싶은 모습이 선택을 이끄는 사용자입니다. 감성적 가치와 상징적 동기를 확인할 수 있습니다.",
-          guide: "Driven by aspiration, taste, identity, self-expression, or emotional value rather than functional necessity."
+          desc: "현재의 사용량보다 강한 욕망과 열망이 앞서는 사용자입니다. 기능적 필요보다 정체성, 취향, 되고 싶은 삶의 모습이 선택을 이끕니다.",
+          purpose: "사람들이 궁극적으로 어떤 경험과 삶을 원하는가",
+          guide: "Driven by desire, aspiration, and motivation rather than current usage volume. Wants an experience that does not exist yet. Identity, taste, aesthetics, and self-image lead the choice.",
+          signals: ["꿈", "언젠가", "되고 싶", "동경", "취향", "인테리어", "감성", "분위기", "자부심", "수집", "몰입", "브랜드", "라이프스타일", "aspiration", "dream", "identity", "aesthetic", "style", "collector", "passion"]
         }
       ];
 
       const NEMO_PROMPTS = {
-        ANALYZE_SYS: `You are a Senior Design Research Strategist. 주어진 과제(주제)와 추가 설명을 해석하여, 실제 사용자 데이터베이스에서 인터뷰 후보를 찾기 위한 검색 기준을 구성합니다.
+        ANALYZE_SYS: `You are a Senior Design Research Strategist. 주어진 과제(주제)를 해석하여, 실제 사용자 데이터베이스에서 인터뷰 후보를 찾기 위한 검색 기준을 구성합니다.
 짧거나 모호한 과제명도 맥락을 추론해 확장하되, 존재하지 않는 사실을 지어내지 마세요.
 모든 설명 문장은 한국어 존댓말로 작성하고, 목록형 항목은 반드시 배열로 반환해 주세요.
+
+이번 과제에서는 아래 네 가지 인터뷰 후보 유형을 각각 찾아야 합니다.
+${ARCHETYPE_SPEC}
+
+"primaryUserRoles"에는 이 과제의 제품·서비스를 실생활에서 가장 자주, 직접 사용하는 대표 사용자의 역할·직업을 가장 대표적인 순서대로 5~10개 적어 주세요. 예를 들어 세탁기나 식기세척기 과제라면 "전업주부", "가사 담당 주부", "다인 가구 살림 담당자"처럼 실제 사용을 맡는 사람을 앞에 두고, 한국어와 영어 표현을 함께 넣어 주세요.
+
+"archetypeHints"에는 이 과제에 한해 각 유형에 해당하는 사람이 데이터에 어떤 표현으로 나타날지, 검색에 쓸 구체적인 단서를 유형별로 6~12개씩 적어 주세요. 한국어와 영어 표현을 함께 넣고, 행동·사용량·제약·동기를 드러내는 표현 위주로 적어 주세요.
+EXTREME USER의 단서에는 과다 사용 쪽과 과소·비사용 쪽 표현을 반드시 함께 포함해 주세요.
+
 [FORMAT] Return exactly this JSON:
-{"researchIntent":"과제의 핵심 탐색 목적 (2~3문장)","importantContexts":["주요 탐색 영역"],"importantBehaviors":["주목해야 할 행동 특성"],"personaTypes":["관련 사용자 유형"],"productsAndServices":["관련 제품/서비스"],"lifeContexts":["관련 생활 맥락"],"painPoints":["예상되는 불편"],"needs":["잠재 니즈"],"keywords":["핵심 키워드"],"expandedKeywords":["확장 키워드"],"bilingualTerms":["English search terms"],"priorityFields":["데이터에서 우선 확인할 필드명 후보"],"occupations":["관련 직업"]}`,
+{"researchIntent":"과제의 핵심 탐색 목적 (2~3문장)","importantContexts":["주요 탐색 영역"],"importantBehaviors":["주목해야 할 행동 특성"],"personaTypes":["관련 사용자 유형"],"productsAndServices":["관련 제품/서비스"],"lifeContexts":["관련 생활 맥락"],"painPoints":["예상되는 불편"],"needs":["잠재 니즈"],"keywords":["핵심 키워드"],"expandedKeywords":["확장 키워드"],"bilingualTerms":["English search terms"],"priorityFields":["데이터에서 우선 확인할 필드명 후보"],"occupations":["관련 직업"],"primaryUserRoles":["대표 사용자 역할·직업(대표적인 순서)"],"archetypeHints":{"general":["단서"],"lead":["단서"],"extreme":["단서"],"desire":["단서"]}}`,
 
         ANALYZE_USER: (topic, description, instruction) => `[과제 또는 리서치 주제]
 ${topic}
@@ -292,56 +343,113 @@ ${topic}
 [추가 설명]
 ${description || "추가 설명 없음"}
 ${instruction ? `\n[분석 재요청 지시사항]\n${instruction}\n` : ""}
-위 과제의 특성을 분석해 주세요.`,
+위 과제의 특성을 분석하고, 네 가지 유형별 검색 단서를 함께 만들어 주세요.`,
 
-        CLASSIFY_SYS: `You are a Senior UX Research Screener. 실제 사용자 데이터(페르소나 원본 레코드)를 과제 기준으로 평가하고, 아래 네 가지 인터뷰 후보 유형 중 하나로 분류합니다.
+        CLASSIFY_SYS: (constraint) => `You are a Senior UX Research Screener. 실제 사용자 데이터(페르소나 원본 레코드)를 읽고, 각 사람이 아래 네 가지 인터뷰 후보 유형에 각각 얼마나 부합하는지 점수로 평가합니다.
 
 [유형 정의]
-${ARCHETYPES.map((a, i) => `${i + 1}. ${a.key} — ${a.name}: ${a.guide}`).join("\n")}
+${ARCHETYPE_SPEC}
 
-[STRICT RULE]
-- 반드시 제공된 데이터에 실제로 적혀 있는 내용만 근거로 삼고, 이름·직업·경험을 새로 지어내지 마세요.
+[채점 규칙]
+- 네 유형 모두에 대해 0~100 점수를 매겨 주세요. 하나만 고르는 것이 아니라 네 개를 모두 채점합니다.
+- 점수는 정의의 "판단 기준"에 데이터가 실제로 부합하는 정도입니다. 근거가 데이터에 없으면 30점 이하로 낮게 주세요.
+- LEAD는 스스로 만들거나 개조·자동화한 근거가 데이터에 있을 때만 70점 이상을 주세요.
+- EXTREME은 사용량이 아주 많거나 반대로 거의 없거나, 제약 조건이 극단적일 때만 70점 이상을 주세요. 어느 쪽 극단인지 extremeSide에 "heavy"(과다) 또는 "light"(과소·비사용) 또는 "none"으로 적어 주세요.
+- DESIRE는 욕망·열망·지향이 데이터에서 뚜렷하게 읽힐 때만 70점 이상을 주세요. 사용량이 많다는 이유로 높게 주지 마세요.
+- GENERAL은 "이 제품·서비스를 실제로 가장 자주 쓰는 대표 사용자인가"를 먼저 보고, 그다음 평균적이고 무난한가를 봅니다. 분석 결과의 primaryUserRoles에 해당하는 사람은 우선 높게(80점 이상) 주세요.
+- 반대로 과제의 제품·서비스와 접점이 거의 없거나 사용 주체가 아닌 사람은, 아무리 평범해도 GENERAL 40점 이하로 낮추세요. 특이점이 강한 사람도 GENERAL 점수를 낮춥니다.
+- interviewValue는 이 과제 인터뷰에서 얻을 인사이트 가치(0~100)입니다.
+- evidence에는 판단 근거가 된 원본 데이터의 표현을 한국어 존댓말 한 문장(70자 이내)으로 요약해 주세요. 근거가 없으면 "데이터에서 직접 확인되지 않음"이라고 적어 주세요.
 - personaId는 제공된 값을 글자 하나도 바꾸지 말고 그대로 돌려주세요.
-- archetype 값은 반드시 general, lead, extreme, desire 중 하나여야 합니다.
-- reason은 한국어 존댓말 한 문장(80자 이내)으로, 왜 그 유형이며 과제와 어떻게 연결되는지 적어 주세요.
-- 근거가 데이터에 없으면 reason에 "데이터에서 직접 확인되지 않음"이라고 적어 주세요.
-[FORMAT] Return exactly this JSON:
-{"items":[{"personaId":"원본 값 그대로","archetype":"general|lead|extreme|desire","archetypeFit":0,"interviewValue":0,"reason":"한 문장"}]}`,
+- 데이터에 없는 이름·직업·경험을 새로 지어내지 마세요.
+${constraint ? `
+[사용자가 요구한 필수 조건]
+"${constraint}"
+- 각 후보가 이 조건을 충족하는지 원본 데이터만 보고 판정해 "meetsConstraint"에 true/false로 적어 주세요.
+- 데이터로 확인할 수 없으면 false로 적어 주세요. 조건 충족 여부와 상관없이 네 유형 점수는 원래 기준대로 매겨 주세요.` : ""}
 
-        CLASSIFY_USER: (analysis, personas) => `[과제 특성 분석 결과]
+[FORMAT] Return exactly this JSON:
+{"items":[{"personaId":"원본 값 그대로","scores":{"general":0,"lead":0,"extreme":0,"desire":0},"extremeSide":"heavy|light|none","interviewValue":0,"meetsConstraint":true,"evidence":"한 문장"}]}`,
+
+        CLASSIFY_USER: (analysis, personas, constraint) => `[과제 특성 분석 결과]
 ${JSON.stringify(analysis)}
+
+[이 과제의 대표 사용자 역할 — GENERAL USER 판단 시 최우선 기준]
+${(analysis && analysis.primaryUserRoles && analysis.primaryUserRoles.length) ? analysis.primaryUserRoles.join(", ") : "분석되지 않음"}
 
 [평가할 실제 사용자 데이터]
 ${JSON.stringify(personas)}
+${constraint ? `\n[필수 조건] ${constraint}\n조건 충족 여부(meetsConstraint)도 함께 판정해 주세요.` : ""}
 
-각 사용자를 유형 분류하고, archetypeFit(해당 유형에 얼마나 부합하는지 0~100)과 interviewValue(이 과제 인터뷰에서 얻을 인사이트 가치 0~100)를 매겨 주세요.`,
+위 과제를 기준으로 각 사람의 네 유형 부합도를 채점해 주세요.`,
 
-        PROFILE_SYS: `You are a Senior UX/User Researcher. 실제 사용자 데이터베이스에서 선정된 인터뷰 후보의 원본 레코드를 읽고, 리서치 팀이 바로 사용할 수 있는 타겟 프로필로 정리합니다.
+        PROFILE_SYS: (archetype) => `You are a Senior UX/User Researcher. 실제 사용자 데이터베이스에서 "${archetype.name}"으로 선정된 인터뷰 후보의 원본 레코드를 읽고, 리서치 팀이 바로 사용할 수 있는 타겟 프로필로 정리합니다.
+
+[이번 유형의 정의]
+${ARCHETYPE_SPEC.split("\n\n")[ARCHETYPES.findIndex(a => a.key === archetype.key)]}
 
 [STRICT RULE]
 - 반드시 제공된 원본 데이터에 근거해 작성하고, 데이터에 없는 이름·나이·직업·가족 구성·제품 보유·경험을 새로 지어내지 마세요.
-- 이름은 반드시 "콘텐츠 유목민: 30대 김민준"처럼 [수식어]: [연령/직업] [이름] 형식으로 작성해 주세요. 수식어는 원본 데이터에서 드러난 특징으로 만들고, 연령·직업·이름은 원본 데이터의 값을 사용해 주세요. 원본에 이름이 없으면 데이터에 나타난 호칭이나 직업 기반 표현을 사용하고 새 이름을 만들지 마세요.
-- "description"은 2줄 이상으로, 이 사람의 생활 맥락과 과제와 연결되는 실제 경험을 서술해 주세요.
-- "needs"는 2줄 이상으로, 원본 데이터에서 확인되는 목표·불편·기대를 구체적으로 서술해 주세요.
+- 이름은 반드시 "콘텐츠 유목민: 30대 김민준"처럼 [수식어]: [연령/직업] [이름] 형식으로 작성해 주세요. 수식어는 이 사람이 왜 이 유형인지 드러내는 표현으로 만들어 주세요. 연령·직업·이름은 원본 데이터의 값을 사용하고, 원본에 이름이 없으면 새 이름을 만들지 말고 직업 기반 표현을 사용해 주세요.
+- "description"은 2줄 이상으로, 생활 맥락과 함께 이 사람이 이 유형에 해당하는 근거가 되는 실제 행동을 반드시 포함해 서술해 주세요.
+- "needs"는 2줄 이상으로, 원본 데이터에서 확인되는 목표·불편·기대를 구체적으로 서술해 주세요. 이 유형의 조사 목적(${archetype.purpose})에 답이 될 만한 내용을 앞세워 주세요.
+- "archetypeReason"은 한국어 존댓말 한 문장(80자 이내)으로, 이 사람이 왜 이 유형인지 원본 데이터의 근거를 들어 적어 주세요.
 - personaId는 제공된 값을 그대로 돌려주세요.
 - 모든 문장은 전문적이고 명확한 한국어 존댓말을 사용해 주세요.
-[FORMAT] Return exactly this JSON:
-{"personas":[{"personaId":"원본 값 그대로","name":"[수식어]: [연령/직업] [이름]","description":"2줄 이상 설명","needs":"2줄 이상 니즈"}]}`,
 
-        PROFILE_USER: (topic, analysis, archetype, personas) => `[리서치 주제]
+[FORMAT] Return exactly this JSON:
+{"personas":[{"personaId":"원본 값 그대로","name":"[수식어]: [연령/직업] [이름]","description":"2줄 이상 설명","needs":"2줄 이상 니즈","archetypeReason":"한 문장"}]}`,
+
+        // 지시문에서 "4-2" 같은 타겟 지목을 찾아냅니다. (카테고리 번호 - 타겟 번호)
+        REPLACE_ONE_SYS: (archetype) => `You are a Senior UX/User Researcher. 실제 사용자 데이터베이스에서 "${archetype.name}" 자리에 들어갈 사람을 한 명만 교체합니다.
+
+[이번 유형의 정의]
+${ARCHETYPE_SPEC.split("\n\n")[ARCHETYPES.findIndex(a => a.key === archetype.key)]}
+
+[STRICT RULE]
+- 제공된 후보 중에서 "수정 지시"에 가장 잘 맞으면서 위 유형 정의에도 부합하는 사람을 정확히 한 명만 골라 주세요.
+- 지시 조건(성별, 연령, 직업, 가구 형태 등)에 맞는 후보가 있으면 반드시 그 후보를 우선하고, 하나도 없으면 유형 정의에 가장 부합하는 후보를 고른 뒤 "matched"를 false로 표시해 주세요.
+- 반드시 제공된 원본 데이터에 근거해 작성하고, 데이터에 없는 이름·나이·직업·경험을 새로 지어내지 마세요.
+- 이름은 "콘텐츠 유목민: 30대 김민준"처럼 [수식어]: [연령/직업] [이름] 형식으로 작성해 주세요.
+- "description"과 "needs"는 각각 2줄 이상으로, 이 사람이 이 유형에 해당하는 근거가 되는 실제 행동을 포함해 서술해 주세요.
+- "archetypeReason"은 한국어 존댓말 한 문장(80자 이내)으로 이 사람을 고른 이유를 적어 주세요.
+- personaId는 제공된 값을 그대로 돌려주세요.
+
+[FORMAT] Return exactly this JSON:
+{"personaId":"고른 후보의 값 그대로","matched":true,"name":"[수식어]: [연령/직업] [이름]","description":"2줄 이상","needs":"2줄 이상","archetypeReason":"한 문장"}`,
+
+        REPLACE_ONE_USER: (topic, archetype, instruction, current, personas) => `[리서치 주제]
+${topic}
+
+[교체할 자리]
+${archetype.short} 카테고리의 "${current}"
+
+[수정 지시]
+${instruction}
+
+[교체 후보 목록]
+${JSON.stringify(personas)}
+
+지시에 맞는 후보 한 명을 골라 프로필을 정리해 주세요.`,
+
+        PROFILE_USER: (topic, analysis, archetype, personas, constraint) => `[리서치 주제]
 ${topic}
 
 [과제 특성 분석 결과]
 ${JSON.stringify(analysis)}
 
-[이번 카테고리]
-${archetype.name} — ${archetype.desc}
-
+[이번 유형]
+${archetype.short} — ${archetype.name}
+${archetype.desc}
+조사 목적: ${archetype.purpose}
+${archetype.key === "general" ? `\n[이 과제의 대표 사용자 역할]\n${(analysis && analysis.primaryUserRoles && analysis.primaryUserRoles.length) ? analysis.primaryUserRoles.join(", ") : "분석되지 않음"}\n설명과 니즈에 이 사람이 제품·서비스를 일상적으로 직접 사용하는 대표 사용자라는 점이 드러나게 해 주세요.\n` : ""}
 [원본 사용자 데이터]
 ${JSON.stringify(personas)}
+${constraint ? `\n[사용자가 요구한 조건] ${constraint}\n조건과 관련된 사실이 원본 데이터에 있다면 설명에 드러나게 해 주세요. 없는 사실을 지어내지는 마세요.` : ""}
 
-위 사람들을 이 카테고리의 인터뷰 타겟 프로필로 정리해 주세요.`
+위 사람들을 이 유형의 인터뷰 타겟 프로필로 정리해 주세요.`
       };
+
 
       /* ---------- 값 정규화 ---------- */
       const NEMO_EMPTY = "데이터에서 직접 확인되지 않음";
@@ -371,6 +479,7 @@ ${JSON.stringify(personas)}
       }
 
       const NEMO_HIGH_FIELDS = ["페르소나 요약", "직업 페르소나", "기술 및 전문성", "취미 및 관심사", "경력 목표", "제품 및 서비스", "생활 맥락", "불편 사항", "니즈", "Persona Summary", "Skills And Expertise List", "Hobbies And Interests List", "Goals And Aspirations", "Products And Services", "Pain Points", "Needs"];
+      const NEMO_ROLE_FIELDS = ["직업", "직업 페르소나", "직무", "역할", "가구 형태", "가족 구성", "Occupation", "Occupation Persona", "Job", "Role", "Household", "Marital Status", "Family"];
       const NEMO_ID_FIELDS = ["이름", "성명", "실명", "Persona Name", "Full Name", "Name", "First Name", "Last Name", "직업", "직업 페르소나", "Occupation", "나이", "연령", "Age", "성별", "Gender", "시도/주", "지역", "Location"];
 
       const nemoRowId = (row) => String(row["고유ID"] ?? row["Persona ID"] ?? row.personaId ?? row.__index);
@@ -475,28 +584,98 @@ ${JSON.stringify(personas)}
         return { headers, rows, sheetName };
       }
 
-      /* ---------- 로컬 1차 검색 ---------- */
-      function nemoLocalCandidates() {
-        const a = state.taskAnalysis || {};
-        const sources = [a.keywords, a.expandedKeywords, a.bilingualTerms, a.importantContexts, a.importantBehaviors, a.occupations, a.personaTypes, a.productsAndServices, a.lifeContexts, a.painPoints, a.needs, state.researchTopic, state.taskDescription];
-        const terms = nemoUniq(sources.flatMap(nemoArr).flatMap(v => nemoNorm(v).split(/[^\p{L}\p{N}]+/u)).filter(v => v.length > 1));
-        const priority = nemoArr(a.priorityFields).map(nemoNorm);
-        const scored = state.nemoRows.map(row => {
-          let raw = 0;
-          state.nemoFields.forEach(field => {
-            const nf = nemoNorm(field);
-            let weight = NEMO_HIGH_FIELDS.some(h => nf.includes(nemoNorm(h))) ? 2.2 : 1;
-            if (priority.some(p => p && nf.includes(p))) weight += 2.5;
-            const cell = nemoNorm(row[field]);
-            if (!cell) return;
-            raw += terms.reduce((sum, t) => sum + (cell.includes(t) ? 1 : 0), 0) * weight;
-          });
-          return { ...row, __rawScore: raw };
-        }).sort((x, y) => y.__rawScore - x.__rawScore);
-        const max = scored.length ? scored[0].__rawScore : 0;
-        return scored.slice(0, Math.min(CONFIG.NEMO.LOCAL_CANDIDATES, scored.length))
-          .map((row, i) => ({ ...row, localScore: max ? Math.round(row.__rawScore / max * 100) : Math.max(1, 100 - i) }));
+      /* ---------- 로컬 1차 검색 — 과제 적합도 + 유형별 단서를 함께 봅니다 ---------- */
+      function nemoTerms(list) {
+        return nemoUniq(nemoArr(list)
+          .flatMap(v => nemoNorm(v).split(/[^\p{L}\p{N}]+/u))
+          .filter(v => v.length > 1));
       }
+      function nemoFieldWeights() {
+        const priority = nemoArr((state.taskAnalysis || {}).priorityFields).map(nemoNorm);
+        return state.nemoFields.filter(f => !f.startsWith("__")).map(field => {
+          const nf = nemoNorm(field);
+          let weight = NEMO_HIGH_FIELDS.some(h => nf.includes(nemoNorm(h))) ? 2.2 : 1;
+          if (priority.some(p => p && nf.includes(p))) weight += 2.5;
+          return { field, weight };
+        });
+      }
+      function nemoScoreRow(row, weights, terms) {
+        if (!terms.length) return 0;
+        let raw = 0;
+        weights.forEach(({ field, weight }) => {
+          const cell = nemoNorm(row[field]);
+          if (!cell) return;
+          raw += terms.reduce((sum, t) => sum + (cell.includes(t) ? 1 : 0), 0) * weight;
+        });
+        return raw;
+      }
+      // 과제 적합도만으로 뽑으면 평균적인 사람만 모여 LEAD/EXTREME/DESIRE 후보가 사라집니다.
+      // 그래서 과제 기준 상위군에 더해 유형별 단서 상위군을 따로 확보해 후보 풀을 만듭니다.
+      function nemoLocalCandidates(constraint) {
+        const a = state.taskAnalysis || {};
+        const weights = nemoFieldWeights();
+        const baseTerms = nemoTerms([a.keywords, a.expandedKeywords, a.bilingualTerms, a.importantContexts,
+          a.importantBehaviors, a.occupations, a.personaTypes, a.productsAndServices, a.lifeContexts,
+          a.painPoints, a.needs, state.researchTopic]);
+        const hints = a.archetypeHints || {};
+        const hintTerms = {};
+        ARCHETYPES.forEach(x => { hintTerms[x.key] = nemoTerms([hints[x.key], x.signals]); });
+        // 과제의 제품·서비스를 실제로 가장 많이 쓰는 대표 사용자 — 직업/역할 필드를 크게 봅니다.
+        const coreTerms = nemoTerms([a.primaryUserRoles, a.occupations, a.personaTypes]);
+        const roleWeights = weights.map(w => ({
+          field: w.field,
+          weight: NEMO_ROLE_FIELDS.some(r => nemoNorm(w.field).includes(nemoNorm(r))) ? w.weight + 4 : w.weight
+        }));
+
+        const cf = constraint || null;
+        const scored = state.nemoRows.map(row => {
+          const base = nemoScoreRow(row, weights, baseTerms);
+          const core = nemoScoreRow(row, roleWeights, coreTerms);
+          const cons = nemoConstraintScore(row, roleWeights, cf);
+          const arche = {};
+          ARCHETYPES.forEach(x => { arche[x.key] = nemoScoreRow(row, weights, hintTerms[x.key]); });
+          return { row, base, core, cons, arche };
+        });
+        const norm = (list, get) => {
+          const max = list.reduce((m, x) => Math.max(m, get(x)), 0);
+          return v => (max ? Math.round(v / max * 100) : 0);
+        };
+        const nb = norm(scored, x => x.base);
+        const nc = norm(scored, x => x.core);
+        const ncs = norm(scored, x => x.cons);
+        const na = {};
+        ARCHETYPES.forEach(x => { na[x.key] = norm(scored, y => y.arche[x.key]); });
+
+        const picked = new Map();
+        const take = (list, count) => list.slice(0, count).forEach(x => {
+          const id = nemoRowId(x.row);
+          if (picked.has(id)) return;
+          picked.set(id, {
+            ...x.row,
+            localScore: Math.max(1, nb(x.base)),
+            coreScore: nc(x.core),
+            constraintScore: ncs(x.cons),
+            hintScore: Object.fromEntries(ARCHETYPES.map(y => [y.key, na[y.key](x.arche[y.key])]))
+          });
+        });
+
+        // 전체 조건 지시가 있으면 조건에 맞는 사람을 먼저 넉넉히 확보합니다.
+        if (cf) take([...scored].sort((p, q) => (q.cons * 3 + q.base) - (p.cons * 3 + p.base)), CONFIG.NEMO.POOL_CONSTRAINT);
+        take([...scored].sort((x, y) => y.base - x.base), CONFIG.NEMO.POOL_BASE);
+        // 제품의 대표 사용자를 먼저 확보합니다 (GENERAL USER의 1순위 후보군).
+        take([...scored].sort((p, q) => (q.core * 3 + q.base) - (p.core * 3 + p.base)), CONFIG.NEMO.POOL_PER_ARCHETYPE);
+        ARCHETYPES.forEach(x => {
+          const bonus = x.key === "general" ? 2 : 0;
+          take([...scored].sort((p, q) =>
+            (q.arche[x.key] * 2 + q.core * bonus + q.base) - (p.arche[x.key] * 2 + p.core * bonus + p.base)),
+            CONFIG.NEMO.POOL_PER_ARCHETYPE);
+        });
+        if (picked.size < Math.min(CONFIG.NEMO.LOCAL_CANDIDATES, state.nemoRows.length)) {
+          take([...scored].sort((x, y) => y.base - x.base), CONFIG.NEMO.LOCAL_CANDIDATES);
+        }
+        return [...picked.values()].slice(0, CONFIG.NEMO.LOCAL_CANDIDATES);
+      }
+
       function nemoRelevantFields() {
         const a = state.taskAnalysis || {};
         const priority = nemoArr(a.priorityFields).map(nemoNorm);
@@ -522,8 +701,11 @@ ${JSON.stringify(personas)}
       function normTaskAnalysis(res) {
         const src = res && typeof res === "object" && !Array.isArray(res) ? (res.analysis && typeof res.analysis === "object" ? res.analysis : res) : {};
         const out = { researchIntent: str(src.researchIntent, "") };
-        ["importantContexts", "importantBehaviors", "personaTypes", "productsAndServices", "lifeContexts", "painPoints", "needs", "keywords", "expandedKeywords", "bilingualTerms", "priorityFields", "occupations"]
+        ["importantContexts", "importantBehaviors", "personaTypes", "productsAndServices", "lifeContexts", "painPoints", "needs", "keywords", "expandedKeywords", "bilingualTerms", "priorityFields", "occupations", "primaryUserRoles"]
           .forEach(k => { out[k] = nemoUniq(nemoArr(src[k]).map(v => v.trim())).slice(0, 30); });
+        const hints = (src.archetypeHints && typeof src.archetypeHints === "object") ? src.archetypeHints : {};
+        out.archetypeHints = Object.fromEntries(ARCHETYPES.map(a =>
+          [a.key, nemoUniq(nemoArr(hints[a.key]).map(v => v.trim())).slice(0, 20)]));
         if (!out.researchIntent && !out.keywords.length) throw new Error("과제 특성 분석 결과를 해석하지 못했습니다. 다시 시도해 주세요.");
         return out;
       }
@@ -534,17 +716,165 @@ ${JSON.stringify(personas)}
           const id = String(x.personaId ?? "");
           if (!id || seen.has(id)) return null;
           seen.add(id);
-          const key = ARCHETYPES.some(a => a.key === x.archetype) ? x.archetype : "general";
-          return { id, key, fit: nemoNum(x.archetypeFit, 50), value: nemoNum(x.interviewValue, 50), reason: str(x.reason, "") };
+          const raw = (x.scores && typeof x.scores === "object") ? x.scores : {};
+          const scores = {};
+          ARCHETYPES.forEach(a => {
+            // 구버전 응답(archetype + archetypeFit) 호환
+            scores[a.key] = raw[a.key] !== undefined ? nemoNum(raw[a.key], 0)
+              : (x.archetype === a.key ? nemoNum(x.archetypeFit, 60) : 20);
+          });
+          const side = ["heavy", "light"].includes(x.extremeSide) ? x.extremeSide : "none";
+          return { id, scores, side, value: nemoNum(x.interviewValue, 50), meets: x.meetsConstraint !== false, evidence: str(x.evidence, "") || str(x.reason, "") };
         }).filter(Boolean);
       }
+
+      /* ---------- 전체 조건 지시 해석 ----------
+         "전체 타겟을 여성으로 변경해 주세요", "전체 타겟을 40대로 해주세요" 같은 지시를
+         검색·분류·프로필 작성에 공통 조건으로 걸기 위해 해석합니다. */
+      const NEMO_STOPWORDS = ["전체", "모든", "모두", "다", "타겟", "대상", "사용자", "인터뷰", "후보", "명",
+        "변경", "교체", "바꿔", "바꾸", "수정", "선정", "다시", "구성", "해주세요", "주세요", "해줘", "줘",
+        "으로", "로", "를", "을", "은", "는", "이", "가", "하고", "그리고", "please", "change", "all", "target", "targets"];
+
+      function nemoConstraint(text) {
+        const raw = String(text || "").trim();
+        if (!raw) return null;
+        const terms = nemoTerms([raw]).filter(t => !NEMO_STOPWORDS.includes(t));
+        const ageRanges = [...raw.matchAll(/(\d{1,2})\s*대/g)]
+          .map(m => Number(m[1]))
+          .filter(n => n >= 10 && n <= 90)
+          .map(a => [a, a + 9]);
+        return { text: raw, terms, ageRanges };
+      }
+
+      function nemoConstraintScore(row, roleWeights, cf) {
+        if (!cf) return 0;
+        let s = cf.terms.length ? nemoScoreRow(row, roleWeights, cf.terms) : 0;
+        if (cf.ageRanges.length) {
+          const f = nemoField(row, ["나이", "연령", "Age"]);
+          const n = f ? parseInt(String(row[f]).replace(/[^0-9]/g, ""), 10) : NaN;
+          if (Number.isFinite(n) && cf.ageRanges.some(([a, b]) => n >= a && n <= b)) s += 12;
+        }
+        return s;
+      }
+
+      // "4-2 타겟을 …" 처럼 특정 타겟을 지목했는지 찾아냅니다. (카테고리 번호 - 타겟 번호)
+      function parseTargetRef(instruction, categories) {
+        const text = String(instruction || "").replace(/\s+/g, " ");
+        const m = text.match(/(?:^|[^0-9])([1-9])\s*(?:번)?\s*[-–—~.\/]\s*([1-9])\s*(?:번|번째)?/);
+        if (!m) return null;
+        const ci = Number(m[1]) - 1, pi = Number(m[2]) - 1;
+        const cat = categories[ci];
+        if (!cat || !cat.personas[pi]) return null;
+        return { cat, persona: cat.personas[pi], label: `${ci + 1}-${pi + 1}` };
+      }
+
+      /* ---------- 후보 배정 — 네 유형 점수를 함께 놓고 전역으로 배분합니다 ---------- */
+      function nemoAssign(pool, evals, constraint) {
+        const byId = new Map(pool.map(r => [nemoRowId(r), r]));
+        const cands = [];
+        evals.forEach(e => {
+          const row = byId.get(e.id);
+          if (!row) return;
+          const fit = {};
+          const core = row.coreScore || 0;
+          ARCHETYPES.forEach(a => {
+            const hint = (row.hintScore && row.hintScore[a.key]) || 0;
+            // 유형 부합도(AI) 65% + 유형 단서(로컬) 15% + 인사이트 가치 12% + 과제 적합도 8%
+            // GENERAL만 "제품의 대표 사용자인가"(coreScore)를 크게 반영합니다.
+            fit[a.key] = a.key === "general"
+              ? Math.round(e.scores[a.key] * 0.52 + core * 0.22 + hint * 0.10 + e.value * 0.08 + (row.localScore || 0) * 0.08)
+              : Math.round(e.scores[a.key] * 0.65 + hint * 0.15 + e.value * 0.12 + (row.localScore || 0) * 0.08);
+          });
+          cands.push({ id: e.id, row, fit, side: e.side, value: e.value, meets: e.meets, evidence: e.evidence });
+        });
+
+        const per = CONFIG.NEMO.PER_CATEGORY;
+        const picks = Object.create(null);
+        ARCHETYPES.forEach(a => { picks[a.key] = []; });
+        const used = new Set();
+
+        const jobOf = (row) => {
+          const f = nemoField(row, ["직업", "직업 페르소나", "Occupation"]);
+          return f ? nemoNorm(row[f]) : "";
+        };
+        const canAdd = (key, c, strict) => {
+          if (picks[key].length >= per) return false;
+          if (!strict) return true;
+          // 같은 유형 안에서 같은 직업이 3명 모두를 차지하지 않도록 합니다.
+          const job = jobOf(c.row);
+          if (job && picks[key].filter(x => jobOf(x.row) === job).length >= 2) return false;
+          // EXTREME은 과다·과소 양쪽을 함께 담습니다.
+          if (key === "extreme" && picks[key].length === 2) {
+            const sides = new Set(picks[key].map(x => x.side));
+            if (sides.size === 1 && !sides.has("none") && c.side === [...sides][0]) return false;
+          }
+          return true;
+        };
+
+        // (후보 × 유형) 쌍을 부합도 순으로 훑으며 배정 — 한 유형에 쏠리지 않고 전체 적합도가 높아집니다.
+        const pairs = [];
+        cands.forEach(c => ARCHETYPES.forEach(a => pairs.push({ c, key: a.key, score: c.fit[a.key] })));
+        pairs.sort((x, y) => y.score - x.score);
+
+        // 전체 조건 지시가 있으면 조건을 충족한 후보로 먼저 채우고, 자리가 남을 때만 나머지를 씁니다.
+        const passes = constraint
+          ? [{ only: true, cutoff: 55 }, { only: true, cutoff: 0 }, { only: false, cutoff: 55 }, { only: false, cutoff: 0 }]
+          : [{ only: false, cutoff: 55 }, { only: false, cutoff: 0 }];
+        for (const pass of passes) {
+          for (const p of pairs) {
+            if (used.has(p.c.id) || p.score < pass.cutoff) continue;
+            if (pass.only && !p.c.meets) continue;
+            if (!canAdd(p.key, p.c, pass.cutoff > 0)) continue;
+            picks[p.key].push({ ...p.c, key: p.key, score: p.score, reason: p.c.evidence, meets: p.c.meets });
+            used.add(p.c.id);
+          }
+        }
+        // 그래도 빈 자리가 남으면 평가되지 않은 후보로 채웁니다.
+        const rest = pool.filter(r => !used.has(nemoRowId(r)) && !cands.some(c => c.id === nemoRowId(r)));
+        ARCHETYPES.forEach(a => {
+          while (picks[a.key].length < per && rest.length) {
+            const row = rest.shift();
+            const id = nemoRowId(row);
+            used.add(id);
+            picks[a.key].push({ id, row, key: a.key, score: row.localScore || 0, reason: "", side: "none", borrowed: true });
+          }
+          picks[a.key].sort((x, y) => y.score - x.score);
+        });
+        return { picks, scored: cands.map(c => ({ id: c.id, row: c.row, key: bestKey(c.fit), score: Math.max(...Object.values(c.fit)), fit: c.fit, side: c.side, reason: c.evidence })) };
+      }
+      // 후보 풀(nemoPool)은 용량 때문에 저장하지 않으므로, 프로젝트를 다시 열면 비어 있습니다.
+      // 원본 데이터가 메모리에 올라와 있으면 로컬 점수만으로 풀을 다시 만들어 교체 기능을 살립니다.
+      function ensureNemoPool() {
+        if (state.nemoPool && state.nemoPool.length) return state.nemoPool;
+        if (!state.nemoRows.length) return [];
+        const pool = nemoLocalCandidates().map(row => {
+          const hint = row.hintScore || {};
+          const local = row.localScore || 0;
+          const core = row.coreScore || 0;
+          const fit = {};
+          ARCHETYPES.forEach(a => {
+            fit[a.key] = a.key === "general"
+              ? Math.round((hint.general || 0) * 0.45 + core * 0.35 + local * 0.20)
+              : Math.round((hint[a.key] || 0) * 0.65 + local * 0.35);
+          });
+          const key = bestKey(fit);
+          return { id: nemoRowId(row), row, key, fit, score: fit[key], side: "none", reason: "" };
+        });
+        if (pool.length) setState({ nemoPool: pool });
+        return pool;
+      }
+
+      function bestKey(fit) {
+        return ARCHETYPES.reduce((best, a) => (fit[a.key] > fit[best] ? a.key : best), ARCHETYPES[0].key);
+      }
+
       function normNemoProfiles(res) {
         const list = Array.isArray(res) ? res : (res && Array.isArray(res.personas) ? res.personas : []);
         const map = Object.create(null);
         list.filter(x => x && typeof x === "object").forEach(x => {
           const id = String(x.personaId ?? "");
           if (!id) return;
-          map[id] = { name: str(x.name, ""), description: str(x.description, ""), needs: str(x.needs, "") };
+          map[id] = { name: str(x.name, ""), description: str(x.description, ""), needs: str(x.needs, ""), archetypeReason: str(x.archetypeReason, "") };
         });
         return map;
       }
@@ -559,43 +889,6 @@ ${JSON.stringify(personas)}
         };
       }
 
-      /* ---------- 후보 배정 ---------- */
-      function nemoAssign(pool, evals) {
-        const byId = new Map(pool.map(r => [nemoRowId(r), r]));
-        const scored = [];
-        evals.forEach(e => {
-          const row = byId.get(e.id);
-          if (!row) return;
-          scored.push({
-            id: e.id, row, key: e.key, reason: e.reason,
-            score: Math.round((row.localScore || 0) * 0.35 + (e.fit * 0.45 + e.value * 0.55) * 0.65)
-          });
-        });
-        scored.sort((x, y) => y.score - x.score);
-
-        const per = CONFIG.NEMO.PER_CATEGORY;
-        const used = new Set();
-        const picks = Object.create(null);
-        ARCHETYPES.forEach(a => {
-          picks[a.key] = scored.filter(s => s.key === a.key && !used.has(s.id)).slice(0, per);
-          picks[a.key].forEach(s => used.add(s.id));
-        });
-        const spare = scored.filter(s => !used.has(s.id));
-        const rest = pool.filter(r => !used.has(nemoRowId(r)) && !scored.some(s => s.id === nemoRowId(r)));
-        ARCHETYPES.forEach(a => {
-          while (picks[a.key].length < per) {
-            let next = spare.shift();
-            if (!next) {
-              const row = rest.shift();
-              if (!row) break;
-              next = { id: nemoRowId(row), row, key: a.key, reason: "", score: row.localScore || 0 };
-            }
-            used.add(next.id);
-            picks[a.key].push({ ...next, key: a.key, borrowed: true });
-          }
-        });
-        return { picks, scored };
-      }
 
       /* =========================================================
          3. 유틸 — 이스케이프 / 토스트 / ID
@@ -687,6 +980,7 @@ ${JSON.stringify(personas)}
           personaSource: "ai",     // "ai" | "nemotron"
           taskDescription: "",
           taskAnalysis: null,
+          targetConstraint: "",
           nemoFileName: "",
           nemoSheetName: "",
           nemoRowCount: 0,
@@ -716,6 +1010,8 @@ ${JSON.stringify(personas)}
           selectedQaIds: [],       // 인덱스가 아닌 ID로 저장 → 항목 추가/수정에도 선택이 밀리지 않음
           userInsight: "",
           inferencePerspective: PERSPECTIVES[0],
+          inferenceCache: null,    // { sig, data: { 관점: { inferences, selectedInferenceId } } }
+          conceptCache: null,      // { sig, data: { 관점: { concepts, selectedConceptId } } }
           inferences: [],
           selectedInferenceId: null,
           conceptPerspective: PERSPECTIVES[0],
@@ -1538,15 +1834,17 @@ ${JSON.stringify(personas)}
         },
 
         /* ---------- 네모트론 확장: 인터뷰 후보 선정 ---------- */
-        async selectNemoCandidates() {
+        async selectNemoCandidates(instruction) {
           if (!state.nemoRows.length) { setState({ errorMsg: "네모트론 데이터 파일을 먼저 불러와 주세요." }); return; }
           if (!state.taskAnalysis) { setState({ errorMsg: "과제 특성 분석을 먼저 진행해 주세요." }); return; }
 
           const topic = state.researchTopic;
           const analysis = state.taskAnalysis;
+          const cf = nemoConstraint(instruction);
+          const constraintText = cf ? cf.text : "";
 
-          const out = await withLoading(`전체 ${state.nemoRows.length.toLocaleString()}명에서 후보를 찾는 중`, async () => {
-            const pool = nemoLocalCandidates();
+          const out = await withLoading(constraintText ? "조건에 맞는 타겟 후보를 찾는 중" : "타겟 후보를 찾는 중", async () => {
+            const pool = nemoLocalCandidates(cf);
             if (!pool.length) throw new Error("검색할 사용자 데이터가 없습니다.");
             const fields = nemoRelevantFields();
             const size = CONFIG.NEMO.BATCH;
@@ -1556,14 +1854,14 @@ ${JSON.stringify(personas)}
 
             for (let i = 0; i < total; i++) {
               const batch = pool.slice(i * size, i * size + size);
-              setState({ loadingMsg: `후보 ${Math.min((i + 1) * size, pool.length)} / ${pool.length}명을 유형별로 분류하는 중` });
+              setState({ loadingMsg: "타겟 후보를 유형별로 분류하는 중" });
               const payload = batch.map(row => ({
                 personaId: nemoRowId(row),
                 personaName: nemoPersonaName(row),
                 data: nemoPayload(row, fields, 300)
               }));
               try {
-                evals.push(...normNemoEvals(await callGemini(NEMO_PROMPTS.CLASSIFY_SYS, NEMO_PROMPTS.CLASSIFY_USER(analysis, payload))));
+                evals.push(...normNemoEvals(await callGemini(NEMO_PROMPTS.CLASSIFY_SYS(constraintText), NEMO_PROMPTS.CLASSIFY_USER(analysis, payload, constraintText))));
               } catch (err) {
                 if (err && err.aborted) throw err;
                 failed++;
@@ -1571,13 +1869,13 @@ ${JSON.stringify(personas)}
             }
             if (!evals.length) throw new Error("후보 분류 결과를 받지 못했습니다. API 키와 네트워크 상태를 확인한 뒤 다시 시도해 주세요.");
 
-            const { picks, scored } = nemoAssign(pool, evals);
+            const { picks, scored } = nemoAssign(pool, evals, constraintText);
             const categories = [];
 
             for (const a of ARCHETYPES) {
               const chosen = picks[a.key] || [];
               if (!chosen.length) continue;
-              setState({ loadingMsg: `${a.short} ${chosen.length}명의 프로필을 정리하는 중` });
+              setState({ loadingMsg: `${a.short} 프로필을 정리하는 중` });
               const payload = chosen.map(c => ({
                 personaId: c.id,
                 personaName: nemoPersonaName(c.row),
@@ -1585,7 +1883,7 @@ ${JSON.stringify(personas)}
               }));
               let profiles = {};
               try {
-                profiles = normNemoProfiles(await callGemini(NEMO_PROMPTS.PROFILE_SYS, NEMO_PROMPTS.PROFILE_USER(topic, analysis, a, payload)));
+                profiles = normNemoProfiles(await callGemini(NEMO_PROMPTS.PROFILE_SYS(a), NEMO_PROMPTS.PROFILE_USER(topic, analysis, a, payload, constraintText)));
               } catch (err) {
                 if (err && err.aborted) throw err;
                 profiles = {};
@@ -1606,8 +1904,9 @@ ${JSON.stringify(personas)}
                     nemoId: c.id,
                     nemoRealName: nemoPersonaName(c.row),
                     nemoMeta: nemoMetaLine(c.row),
-                    nemoReason: c.reason || (c.borrowed ? "유형별 인원을 맞추기 위해 적합도 순으로 추가한 후보입니다." : ""),
+                    nemoReason: str(p.archetypeReason, "") || c.reason || (c.borrowed ? "유형별 인원을 맞추기 위해 적합도 순으로 추가한 후보입니다." : ""),
                     nemoScore: c.score,
+                    constraintMet: constraintText ? c.meets !== false : undefined,
                     nemoEvidence: nemoEvidence(c.row, fields),
                     nemoRaw: nemoRawFields(c.row)
                   };
@@ -1615,13 +1914,21 @@ ${JSON.stringify(personas)}
               });
             }
             if (!categories.length) throw new Error("선정된 후보가 없습니다. 과제 특성을 다시 분석한 뒤 시도해 주세요.");
-            return { categories, scored, failed };
+            const missed = categories.flatMap(c => c.personas).filter(p => p.constraintMet === false).length;
+            return { categories, scored, failed, missed };
           });
 
           if (!out) return;
           if (out.failed) toast(`평가 묶음 ${out.failed}건이 응답하지 않아 나머지 결과로 선정했습니다.`, "warn");
+          if (constraintText) {
+            toast(out.missed
+              ? `조건에 맞는 후보가 부족해 ${out.missed}명은 조건 밖에서 선정했습니다.`
+              : "조건에 맞는 타겟 12명을 다시 선정했습니다.", out.missed ? "warn" : "ok");
+          }
+          clearDrafts("persona-instruction");
           setState({
             categories: out.categories,
+            targetConstraint: constraintText,
             nemoPool: out.scored,
             selectedPersonaId: null,
             surveys: [],
@@ -1636,18 +1943,19 @@ ${JSON.stringify(personas)}
         async swapNemoPersona(catId, personaId) {
           const cat = state.categories.find(c => c.id === catId);
           if (!cat) return;
-          if (!state.nemoPool.length) {
-            setState({ errorMsg: "원본 데이터가 메모리에 없어 다른 후보로 교체할 수 없습니다. 주제 화면에서 파일을 다시 불러와 주세요." });
+          const base = ensureNemoPool();
+          if (!base.length) {
+            setState({ errorMsg: "원본 데이터가 연결되어 있지 않아 다른 후보로 교체할 수 없습니다. 주제 설정 화면의 '원본 데이터 다시 연결'에서 파일을 불러온 뒤 다시 시도해 주세요." });
             return;
           }
           const arche = ARCHETYPES.find(a => a.name === cat.name) || ARCHETYPES[0];
           const used = new Set(allPersonas().map(p => p.nemoId).filter(Boolean));
-          const next = state.nemoPool.find(s => s.key === arche.key && !used.has(s.id)) || state.nemoPool.find(s => !used.has(s.id));
+          const next = base.find(s => s.key === arche.key && !used.has(s.id)) || base.find(s => !used.has(s.id));
           if (!next) { setState({ errorMsg: "교체할 다른 후보가 남아 있지 않습니다." }); return; }
 
           const fields = nemoRelevantFields();
           const res = await withLoading("다른 후보의 프로필을 정리하는 중",
-            () => callGemini(NEMO_PROMPTS.PROFILE_SYS, NEMO_PROMPTS.PROFILE_USER(state.researchTopic, state.taskAnalysis || {}, arche,
+            () => callGemini(NEMO_PROMPTS.PROFILE_SYS(arche), NEMO_PROMPTS.PROFILE_USER(state.researchTopic, state.taskAnalysis || {}, arche,
               [{ personaId: next.id, personaName: nemoPersonaName(next.row), data: nemoPayload(next.row, fields, 700) }])));
           if (!res) return;
 
@@ -1661,7 +1969,7 @@ ${JSON.stringify(personas)}
             nemoId: next.id,
             nemoRealName: nemoPersonaName(next.row),
             nemoMeta: nemoMetaLine(next.row),
-            nemoReason: next.reason || "",
+            nemoReason: str(prof.archetypeReason, "") || next.reason || "",
             nemoScore: next.score,
             nemoEvidence: nemoEvidence(next.row, fields),
             nemoRaw: nemoRawFields(next.row)
@@ -1678,10 +1986,103 @@ ${JSON.stringify(personas)}
           toast("다른 실제 후보로 교체했습니다.", "ok");
         },
 
+        // 타겟 수정 지시 입구 — 한 명 지목이면 그 한 명만, 아니면 전체를 다시 구성합니다.
+        reviseTargets(instruction) {
+          const text = String(instruction || "").trim();
+          const ref = text ? parseTargetRef(text, state.categories) : null;
+          if (ref) return Actions.reviseOneTarget(ref, text);
+          if (nemoActive()) {
+            if (!text) { setState({ errorMsg: "수정 지시를 입력해 주세요." }); return; }
+            // "전체 타겟을 여성으로" 같은 지시는 조건을 걸어 12명을 다시 선정합니다.
+            return Actions.selectNemoCandidates(text);
+          }
+          return Actions.generatePersonas(text);
+        },
+
+        /* ---------- 2단계: 특정 타겟 한 명만 교체 ---------- */
+        // "4-2 타겟을 여성으로 교체해 주세요" 같은 지시를 받으면 그 한 명만 바꿉니다.
+        async reviseOneTarget(ref, instruction) {
+          const { cat, persona } = ref;
+          if (persona.source === "nemotron") return Actions.reviseNemoTarget(ref, instruction);
+
+          const existing = cat.personas.filter(p => p.id !== persona.id).map(p => p.name).join(", ");
+          const desc = `${cat.desc}\n[교체 대상] ${persona.name}\n[수정 지시] ${instruction}\n지시 조건을 반드시 반영하되 이 카테고리의 정의에는 계속 부합해야 합니다.`;
+          const res = await withLoading(`${ref.label} 타겟을 지시에 맞게 교체하는 중`,
+            () => callGemini(PROMPTS.SINGLE_PERSONA(state.researchTopic, cat.name, desc, existing), "Generate one replacement persona."));
+          if (!res) return;
+          let np;
+          try { np = normPersona(res); }
+          catch (e) { setState({ errorMsg: e.message }); return; }
+          Actions.applyTargetRevision(ref, np, `${ref.label} 타겟을 교체했습니다.`);
+        },
+
+        async reviseNemoTarget(ref, instruction) {
+          const { cat, persona } = ref;
+          const base = ensureNemoPool();
+          if (!base.length) {
+            setState({ errorMsg: "원본 데이터가 연결되어 있지 않아 타겟을 교체할 수 없습니다. 주제 설정 화면의 '원본 데이터 다시 연결'에서 파일을 불러온 뒤 다시 시도해 주세요." });
+            return;
+          }
+          const arche = ARCHETYPES.find(a => a.name === cat.name) || ARCHETYPES[0];
+          const used = new Set(allPersonas().map(p => p.nemoId).filter(Boolean));
+          const rank = (x) => (x.fit && x.fit[arche.key] !== undefined) ? x.fit[arche.key] : x.score;
+          const pool = base.filter(x => !used.has(x.id)).sort((x, y) => rank(y) - rank(x));
+          if (!pool.length) { setState({ errorMsg: "교체할 다른 후보가 남아 있지 않습니다." }); return; }
+
+          const fields = nemoRelevantFields();
+          const cands = pool.slice(0, CONFIG.NEMO.REPLACE_CANDIDATES).map(x => ({
+            personaId: x.id, personaName: nemoPersonaName(x.row), data: nemoPayload(x.row, fields, 500)
+          }));
+          const res = await withLoading(`${ref.label} 타겟을 지시에 맞게 교체하는 중`,
+            () => callGemini(NEMO_PROMPTS.REPLACE_ONE_SYS(arche),
+              NEMO_PROMPTS.REPLACE_ONE_USER(state.researchTopic, arche, instruction, persona.name, cands)));
+          if (!res) return;
+
+          const chosenId = String((res && res.personaId) ?? "");
+          const hit = pool.find(x => x.id === chosenId) || pool[0];
+          const fb = nemoFallbackProfile(hit.row, arche);
+          const replacement = {
+            name: str(res.name, "") || fb.name,
+            description: str(res.description, "") || fb.description,
+            needs: str(res.needs, "") || fb.needs,
+            source: "nemotron",
+            nemoId: hit.id,
+            nemoRealName: nemoPersonaName(hit.row),
+            nemoMeta: nemoMetaLine(hit.row),
+            nemoReason: str(res.archetypeReason, "") || hit.reason || "",
+            nemoScore: rank(hit),
+            nemoEvidence: nemoEvidence(hit.row, fields),
+            nemoRaw: nemoRawFields(hit.row)
+          };
+          const matched = res.matched !== false;
+          Actions.applyTargetRevision(ref, replacement,
+            matched ? `${ref.label} 타겟을 교체했습니다.` : `${ref.label} 타겟을 교체했지만 지시 조건에 정확히 맞는 후보는 없었습니다.`,
+            matched ? "ok" : "warn");
+        },
+
+        // 나머지 11명은 그대로 두고 지목된 한 명만 바꿔 끼웁니다.
+        applyTargetRevision(ref, patchFields, message, tone) {
+          const categories = state.categories.map(c => c.id !== ref.cat.id ? c : {
+            ...c,
+            personas: c.personas.map(p => (p.id === ref.persona.id ? { ...p, ...patchFields } : p))
+          });
+          const patch = { categories };
+          // 인터뷰 질문은 특정 타겟 기준으로 만들어졌으므로, 교체된 타겟이 선택 중이었다면 질문만 폐기합니다.
+          if (state.selectedPersonaId === ref.persona.id) {
+            patch.surveys = []; patch.selectedQuestionIds = []; patch.editingQuestionId = null;
+          }
+          clearDrafts("persona-instruction");
+          setState(patch);
+          toast(message, tone || "ok");
+        },
+
         /* ---------- 1단계: 주제 ---------- */
         async generatePersonas(instruction) {
           const topic = draftOr("topic", state.researchTopic).trim();
           if (!topic) { setState({ errorMsg: "리서치 주제를 입력해 주세요." }); return; }
+          // 특정 타겟을 지목한 지시라면 그 한 명만 교체하고 나머지는 건드리지 않습니다.
+          const ref = instruction ? parseTargetRef(instruction, state.categories) : null;
+          if (ref) return Actions.reviseOneTarget(ref, instruction);
           const res = await withLoading(instruction ? "타겟을 다시 구성하는 중" : "핵심 타겟 12명을 분석하는 중",
             () => callGemini(PROMPTS.PERSONAS(topic, instruction), topic));
           if (!res) return;
@@ -1693,6 +2094,7 @@ ${JSON.stringify(personas)}
           setState({
             researchTopic: topic,
             categories,
+            targetConstraint: instruction ? String(instruction).trim() : "",
             selectedPersonaId: null,
             surveys: [],
             selectedQuestionIds: [],
@@ -1881,6 +2283,27 @@ ${JSON.stringify(personas)}
           const qaText = picked.map(qa => `Q: ${qa.q}\nA: ${qa.a}`).join("\n\n");
           const persona = { name: s.personaName, description: s.personaDescription, needs: s.personaNeeds };
 
+          // 같은 대화·같은 관점이면 이미 뽑아 둔 결과를 그대로 다시 보여 줍니다. (재분석 안 함)
+          const sig = picked.map(qa => qa.id).sort().join(",") + "|" + insight;
+          const cache = (s.inferenceCache && s.inferenceCache.sig === sig && s.inferenceCache.data)
+            ? s.inferenceCache : { sig, data: {} };
+          const hit = cache.data[p];
+          if (hit && Array.isArray(hit.inferences) && hit.inferences.length) {
+            updateSession({
+              userInsight: insight,
+              inferencePerspective: p,
+              inferences: hit.inferences,
+              selectedInferenceId: hit.selectedInferenceId || null,
+              conceptPerspective: p,
+              concepts: [],
+              selectedConceptId: null,
+              scenario: "",
+              inferenceCache: cache
+            }, { step: 8 });
+            toast(`${p}에서 도출했던 결과를 다시 불러왔습니다.`, "info");
+            return;
+          }
+
           const res = await withLoading(`${p}에서 핵심 가치를 추론하는 중`,
             () => callGemini(PROMPTS.INFERENCES(state.researchTopic, persona, qaText, insight, p), "Generate inferences."));
           if (!res) return;
@@ -1900,11 +2323,22 @@ ${JSON.stringify(personas)}
             concepts: [],
             selectedConceptId: null,
             scenario: "",
-            branches
+            branches,
+            inferenceCache: { sig, data: { ...cache.data, [p]: { inferences, selectedInferenceId: null } } }
           }, { step: 8 });
         },
 
-        selectInference(id) { if (activeSession()) updateSession({ selectedInferenceId: id }); },
+        selectInference(id) {
+          const s = activeSession();
+          if (!s) return;
+          const patch = { selectedInferenceId: id };
+          const c = s.inferenceCache;
+          // 관점을 오갈 때 선택까지 그대로 되살아나도록 캐시에도 반영합니다.
+          if (c && c.data && c.data[s.inferencePerspective]) {
+            patch.inferenceCache = { ...c, data: { ...c.data, [s.inferencePerspective]: { ...c.data[s.inferencePerspective], selectedInferenceId: id } } };
+          }
+          updateSession(patch);
+        },
 
         /* ---------- 9단계: 컨셉 ---------- */
         async generateConcepts(perspective) {
@@ -1918,6 +2352,23 @@ ${JSON.stringify(personas)}
           if (!picked.length) picked = s.qaPairs;
           const qaText = picked.map(qa => `Q: ${qa.q}\nA: ${qa.a}`).join("\n\n");
           const persona = { name: s.personaName, description: s.personaDescription, needs: s.personaNeeds };
+
+          // 같은 추론·같은 관점이면 이미 뽑아 둔 컨셉을 그대로 다시 보여 줍니다. (재분석 안 함)
+          const sig = picked.map(qa => qa.id).sort().join(",") + "|" + s.userInsight + "|" + s.selectedInferenceId;
+          const cache = (s.conceptCache && s.conceptCache.sig === sig && s.conceptCache.data)
+            ? s.conceptCache : { sig, data: {} };
+          const hit = cache.data[p];
+          if (hit && Array.isArray(hit.concepts) && hit.concepts.length) {
+            updateSession({
+              conceptPerspective: p,
+              concepts: hit.concepts,
+              selectedConceptId: hit.selectedConceptId || null,
+              scenario: "",
+              conceptCache: cache
+            }, { step: 9 });
+            toast(`${p}에서 도출했던 컨셉을 다시 불러왔습니다.`, "info");
+            return;
+          }
 
           const res = await withLoading(`${p}에서 디자인 컨셉을 도출하는 중`,
             () => callGemini(PROMPTS.CONCEPTS(state.researchTopic, persona, qaText, s.userInsight, inf, p), "Generate concepts."));
@@ -1933,11 +2384,21 @@ ${JSON.stringify(personas)}
             concepts,
             selectedConceptId: null,
             scenario: "",
-            branches
+            branches,
+            conceptCache: { sig, data: { ...cache.data, [p]: { concepts, selectedConceptId: null } } }
           }, { step: 9 });
         },
 
-        selectConcept(id) { if (activeSession()) updateSession({ selectedConceptId: id }); },
+        selectConcept(id) {
+          const s = activeSession();
+          if (!s) return;
+          const patch = { selectedConceptId: id };
+          const c = s.conceptCache;
+          if (c && c.data && c.data[s.conceptPerspective]) {
+            patch.conceptCache = { ...c, data: { ...c.data, [s.conceptPerspective]: { ...c.data[s.conceptPerspective], selectedConceptId: id } } };
+          }
+          updateSession(patch);
+        },
 
         /* ---------- 10단계: 시나리오 ---------- */
         async generateScenario() {
@@ -2081,7 +2542,9 @@ ${JSON.stringify(personas)}
           if (box.scrollHeight - box.clientHeight <= 6) { track.classList.add("hidden"); return; }
           track.classList.remove("hidden");
           const sync = () => {
-            const h = Math.max(40, Math.round(box.clientHeight * (box.clientHeight / box.scrollHeight)));
+            // 손잡이는 짧게 — 트랙 대비 최대 30%
+            const visible = box.clientHeight / box.scrollHeight;
+            const h = Math.max(28, Math.round(box.clientHeight * Math.min(visible * 0.5, 0.3)));
             const span = box.clientHeight - h;
             const ratio = box.scrollTop / (box.scrollHeight - box.clientHeight || 1);
             thumb.style.height = h + "px";
@@ -2286,7 +2749,7 @@ ${JSON.stringify(personas)}
 
           <section class="bg-blue-50 border-2 border-blue-300 rounded-3xl p-6 mb-2">
             <h3 class="t-label text-blue-900 mb-3">후보 선정 방식</h3>
-            <p class="t-small text-blue-950 prose-ko">전체 ${(state.nemoRowCount || state.nemoRows.length).toLocaleString()}명을 위 키워드로 훑어 1차 후보 ${Math.min(CONFIG.NEMO.LOCAL_CANDIDATES, Math.max(state.nemoRowCount || state.nemoRows.length, 1))}명을 추린 뒤, AI가 각 후보를 GENERAL USER · LEAD USER · EXTREME USER · DESIRE-DRIVEN USER 네 유형으로 분류하고 유형별로 3명씩 총 12명을 선정합니다.</p>
+            <p class="t-small text-blue-950 prose-ko">업로드한 데이터 전체에서 과제 적합도가 높은 사람과 네 유형별 단서에 걸리는 사람을 함께 모아 1차 후보를 만듭니다. 이어서 AI가 후보마다 GENERAL USER · LEAD USER · EXTREME USER · DESIRE-DRIVEN USER 네 유형 부합도를 모두 채점하고, 그 점수를 함께 놓고 유형별로 3명씩 총 12명을 배정합니다.</p>
           </section>
 
           ${instructionBox("task-instruction", "Actions.analyzeTask(document.getElementById('task-instruction').value)", "예: 1인 가구 관점을 더 강조해 주세요", "과제 특성 다시 분석")}
@@ -2419,6 +2882,10 @@ ${JSON.stringify(personas)}
         return `<div class="page-top px-4 dock-space animate-fade-in">
           ${header("타겟 제안", nemoActive() ? 101 : 1)}
           <h2 class="t-h1 text-slate-900 mb-3">핵심 인터뷰 타겟을 제안합니다</h2>
+          ${state.targetConstraint ? `<div class="mb-6 bg-blue-50 border-2 border-blue-300 rounded-2xl px-5 py-4">
+            <span class="block t-label text-blue-900 mb-1">적용된 수정 지시</span>
+            <span class="block t-small text-blue-950 prose-ko">${esc(state.targetConstraint)}</span>
+          </div>` : ""}
           <p class="t-small text-slate-600 mb-8">${nemoActive() ? `GENERAL · LEAD · EXTREME · DESIRE-DRIVEN 네 개 카테고리로, 업로드한 데이터 ${(state.nemoRowCount || 0).toLocaleString()}명에서 12명을 선정했습니다.` : "GENERAL · LEAD · EXTREME · DESIRE-DRIVEN 네 개 카테고리로 12명을 구성했습니다. 아래 지시 입력으로 목록을 다시 만들 수 있습니다."}</p>
           ${nemoReconnectBanner()}
           ${cats}
@@ -2437,7 +2904,7 @@ ${JSON.stringify(personas)}
             <button type="button" onclick="Actions.addManualPersona()" class="w-full py-4 rounded-2xl bg-slate-800 text-white font-bold t-small active:scale-[0.98] transition-all">목록에 추가</button>
           </section>
 
-          ${instructionBox("persona-instruction", "Actions.generatePersonas(document.getElementById('persona-instruction').value)", "예: 40~60대 비중을 늘려 주세요", "타겟 수정 지시하기")}
+          ${instructionBox("persona-instruction", "Actions.reviseTargets(document.getElementById('persona-instruction').value)", "예: 전체 타겟을 40대로 해주세요\n예: 4-2 타겟 사용자를 여성으로 교체해 주세요", "타겟 수정 지시하기")}
 
           ${dock(primaryBtn("인터뷰 대상 선택하기", "setState({step:3})"))}
         </div>`;
@@ -2727,7 +3194,6 @@ ${JSON.stringify(personas)}
 
           ${branchSummary(s)}
 
-          <div class="mb-10">${secondaryBtn("다른 타겟 인터뷰하기", "Actions.interviewAnotherTarget()", "users")}</div>
 
           ${dock(`
             ${perspectiveRow(s.conceptPerspective, p => `Actions.generateConcepts('${p}')`)}
