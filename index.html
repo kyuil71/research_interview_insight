@@ -1821,7 +1821,7 @@ ${constraint ? `\n[사용자가 요구한 조건] ${constraint}\n조건과 관�
         async analyzeTask(instruction) {
           const topic = draftOr("topic", state.researchTopic).trim();
           if (!topic) { setState({ errorMsg: "리서치 주제를 입력해 주세요." }); return; }
-          if (!state.nemoRows.length) { setState({ errorMsg: "네모트론 데이터 파일을 먼저 불러와 주세요." }); return; }
+          if (state.personaSource === "nemotron" && !state.nemoRows.length) { setState({ errorMsg: "네모트론 데이터 파일을 먼저 불러와 주세요." }); return; }
           const desc = "";
           const res = await withLoading(instruction ? "과제 특성을 다시 분석하는 중" : "과제 특성을 분석하는 중",
             () => callGemini(NEMO_PROMPTS.ANALYZE_SYS, NEMO_PROMPTS.ANALYZE_USER(topic, desc, instruction)));
@@ -2083,8 +2083,12 @@ ${constraint ? `\n[사용자가 요구한 조건] ${constraint}\n조건과 관�
           // 특정 타겟을 지목한 지시라면 그 한 명만 교체하고 나머지는 건드리지 않습니다.
           const ref = instruction ? parseTargetRef(instruction, state.categories) : null;
           if (ref) return Actions.reviseOneTarget(ref, instruction);
-          const res = await withLoading(instruction ? "타겟을 다시 구성하는 중" : "핵심 타겟 12명을 분석하는 중",
-            () => callGemini(PROMPTS.PERSONAS(topic, instruction), topic));
+          // 과제 특성 분석 결과가 있으면 생성 근거로 함께 전달합니다.
+          const a = state.taskAnalysis;
+          const note = a ? `[과제 특성 분석 결과]\n${JSON.stringify(a)}\n위 분석 결과를 근거로 삼아 12명을 구성해 주세요. 특히 GENERAL USER는 primaryUserRoles에 해당하는 대표 사용자를 우선 배치해 주세요.` : "";
+          const merged = [note, instruction ? `[추가 수정 지시]\n${instruction}` : ""].filter(Boolean).join("\n\n");
+          const res = await withLoading(instruction ? "타겟을 다시 구성하는 중" : "가상 타겟 12명을 생성하는 중",
+            () => callGemini(PROMPTS.PERSONAS(topic, merged), topic));
           if (!res) return;
           let categories;
           try { categories = normCategories(res); }
@@ -2702,8 +2706,8 @@ ${constraint ? `\n[사용자가 요구한 조건] ${constraint}\n조건과 관�
           <p class="t-small text-slate-600 mb-6">AI가 만든 가상 타겟과 실제 페르소나 데이터 중 하나를 고를 수 있습니다.</p>
           <section class="bg-white border-2 border-slate-300 rounded-3xl p-6 shadow-md mb-6">
             <div class="flex gap-3">
-              ${tab("ai", "AI 가상 타겟", "주제만으로 12명 생성", "sparkles")}
-              ${tab("nemotron", "네모트론 페르소나 데이터", "업로드한 데이터에서 선정", "users")}
+              ${tab("ai", "AI가 제안하는 가상 타겟", "과제 특성을 분석하고 생성하는 최적의 가상 사용자 12명", "sparkles")}
+              ${tab("nemotron", "네모트론 페르소나에서 선택하는 가상 타겟", "업로드한 데이터에서 과제 특성을 분석하고 선택하는 최적의 가상 사용자 12명", "users")}
             </div>
             ${useNemo ? dropZone : ""}
           </section>`;
@@ -2723,6 +2727,7 @@ ${constraint ? `\n[사용자가 요구한 조건] ${constraint}\n조건과 관�
       function viewTaskAnalysis() {
         const a = state.taskAnalysis || {};
         const chips = nemoUniq([...nemoArr(a.keywords), ...nemoArr(a.expandedKeywords), ...nemoArr(a.bilingualTerms)]).slice(0, 24);
+        const useNemo = state.personaSource === "nemotron";
         const hasData = state.nemoRows.length > 0;
         const done = state.categories.length > 0;
         return `<div class="page-top px-4 dock-space animate-fade-in">
@@ -2748,13 +2753,17 @@ ${constraint ? `\n[사용자가 요구한 조건] ${constraint}\n조건과 관�
           </section>
 
           <section class="bg-blue-50 border-2 border-blue-300 rounded-3xl p-6 mb-2">
-            <h3 class="t-label text-blue-900 mb-3">후보 선정 방식</h3>
-            <p class="t-small text-blue-950 prose-ko">업로드한 데이터 전체에서 과제 적합도가 높은 사람과 네 유형별 단서에 걸리는 사람을 함께 모아 1차 후보를 만듭니다. 이어서 AI가 후보마다 GENERAL USER · LEAD USER · EXTREME USER · DESIRE-DRIVEN USER 네 유형 부합도를 모두 채점하고, 그 점수를 함께 놓고 유형별로 3명씩 총 12명을 배정합니다.</p>
+            <h3 class="t-label text-blue-900 mb-3">타겟 선정 방식</h3>
+            <p class="t-small text-blue-950 prose-ko">${useNemo
+              ? "업로드한 데이터 전체에서 과제 적합도가 높은 사람과 네 유형별 단서에 걸리는 사람을 함께 모아 1차 후보를 만듭니다. 이어서 AI가 후보마다 GENERAL USER · LEAD USER · EXTREME USER · DESIRE-DRIVEN USER 네 유형 부합도를 모두 채점하고, 그 점수를 함께 놓고 유형별로 3명씩 총 12명을 배정합니다."
+              : "위 과제 특성 분석을 근거로 AI가 GENERAL USER · LEAD USER · EXTREME USER · DESIRE-DRIVEN USER 네 유형에 각각 부합하는 최적의 가상 사용자를 3명씩, 모두 12명 생성합니다."}</p>
           </section>
 
           ${instructionBox("task-instruction", "Actions.analyzeTask(document.getElementById('task-instruction').value)", "예: 1인 가구 관점을 더 강조해 주세요", "과제 특성 다시 분석")}
 
-          ${dock(primaryBtn(hasData ? (done ? "후보 12명 다시 선정하기" : "실제 데이터에서 12명 선정하기") : "데이터를 먼저 불러와 주세요", "Actions.selectNemoCandidates()", !hasData))}
+          ${dock(useNemo
+            ? primaryBtn(hasData ? (done ? "후보 12명 다시 선정하기" : "실제 데이터에서 12명 선정하기") : "데이터를 먼저 불러와 주세요", "Actions.selectNemoCandidates()", !hasData)
+            : primaryBtn(done ? "가상 타겟 12명 다시 제안하기" : "가상 타겟 12명 제안하기", "Actions.generatePersonas()"))}
         </div>`;
       }
 
@@ -2794,11 +2803,11 @@ ${constraint ? `\n[사용자가 요구한 조건] ${constraint}\n조건과 관�
 
       // 주제 화면 하단 버튼 — 데이터 소스에 따라 다음 행동이 달라집니다.
       function nemoTopicDock() {
+        const back = state.taskAnalysis ? `<div class="mb-3">${secondaryBtn("이전 과제 분석 결과 보기", "setState({step:101})", "file-search")}</div>` : "";
         if (state.personaSource !== "nemotron") {
-          return primaryBtn(state.categories.length ? "사용자 타겟 12명 다시 제안하기" : "사용자 타겟 12명 제안하기", "Actions.generatePersonas()");
+          return back + primaryBtn("과제 특성 분석하기", "Actions.analyzeTask()");
         }
         const hasData = state.nemoRows.length > 0;
-        const back = state.taskAnalysis ? `<div class="mb-3">${secondaryBtn("이전 과제 분석 결과 보기", "setState({step:101})", "file-search")}</div>` : "";
         return back + primaryBtn(hasData ? "과제 특성 분석하기" : "데이터를 먼저 불러와 주세요", "Actions.analyzeTask()", !hasData);
       }
 
@@ -2810,7 +2819,7 @@ ${constraint ? `\n[사용자가 요구한 조건] ${constraint}\n조건과 관�
 
       function viewTopic() {
         return `<div class="page-top px-4 dock-space animate-fade-in">
-          ${header("주제 설정", 0, (state.personaSource === "nemotron" && state.taskAnalysis) ? 101 : undefined)}
+          ${header("주제 설정", 0, state.taskAnalysis ? 101 : undefined)}
           <h2 class="t-h1 text-slate-900 mb-3">어떤 과제를 진행하고 싶으신가요?</h2>
           <p class="t-small text-slate-600 mb-8">해결하려는 문제나 타겟 시장을 구체적으로 적을수록 결과가 정확해집니다.</p>
           <label for="topic-input" class="sr-only">리서치 주제</label>
@@ -2880,7 +2889,7 @@ ${constraint ? `\n[사용자가 요구한 조건] ${constraint}\n조건과 관�
           </section>` : "";
 
         return `<div class="page-top px-4 dock-space animate-fade-in">
-          ${header("타겟 제안", nemoActive() ? 101 : 1)}
+          ${header("타겟 제안", state.taskAnalysis ? 101 : 1)}
           <h2 class="t-h1 text-slate-900 mb-3">핵심 인터뷰 타겟을 제안합니다</h2>
           ${state.targetConstraint ? `<div class="mb-6 bg-blue-50 border-2 border-blue-300 rounded-2xl px-5 py-4">
             <span class="block t-label text-blue-900 mb-1">적용된 수정 지시</span>
