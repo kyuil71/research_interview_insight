@@ -1517,14 +1517,14 @@ ${constraint ? `\n[사용자가 요구한 조건] ${constraint}\n조건과 관�
       function instructionBox(id, onSend, placeholder, label) {
         const title = esc(label || "AI 수정 지시");
         // 좁은 화면에서 한 줄 입력칸과 버튼을 나란히 두면 버튼이 밀려 잘리므로 세로로 쌓습니다.
-        return `<section class="p-5 bg-slate-800 rounded-3xl shadow-xl mt-8">
-          <h3 class="t-label text-blue-300 mb-3">${title}</h3>
+        return `<section class="p-5 bg-white/60 border border-slate-200 rounded-3xl mt-8">
+          <h3 class="t-label text-slate-500 mb-3">${title}</h3>
           <label for="${id}" class="sr-only">수정 지시 입력</label>
           <textarea id="${id}" rows="3" oninput="setDraft('${id}', this.value)"
-            class="w-full block min-w-0 bg-white/10 border border-white/20 rounded-xl px-4 py-3.5 text-white t-small outline-none resize-none placeholder:text-slate-300 focus:border-blue-400 mb-3"
+            class="w-full block min-w-0 bg-white border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 t-small outline-none resize-none placeholder:text-slate-400 focus:border-blue-500 mb-3"
             placeholder="${escAttr(placeholder)}">${esc(draft(id))}</textarea>
           <button type="button" onclick="${onSend}"
-            class="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold t-small flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
+            class="w-full py-3.5 rounded-xl bg-white border border-slate-300 hover:bg-blue-50 text-slate-700 font-bold t-small flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
             <i data-lucide="send" class="w-5 h-5"></i>${title}
           </button>
         </section>`;
@@ -3088,14 +3088,14 @@ ${constraint ? `\n[사용자가 요구한 조건] ${constraint}\n조건과 관�
             ${s.qaPairs.map((qa, i) => qaCard(qa, i, { selectable: false })).join("")}
           </div>
 
-          <section class="bg-slate-700 rounded-3xl p-6 shadow-xl">
-            <h3 class="t-label text-blue-200 mb-3">추가 질문하기</h3>
+          <section class="bg-white/60 border border-slate-200 rounded-3xl p-6">
+            <h3 class="t-label text-slate-500 mb-3">추가 질문하기</h3>
             <label for="followup" class="sr-only">추가 질문</label>
             <textarea id="followup" rows="3" oninput="setDraft('followup', this.value)"
-              class="w-full block min-w-0 bg-white/10 border border-white/20 rounded-xl px-4 py-3.5 text-white t-small outline-none resize-none placeholder:text-slate-300 focus:border-blue-400 mb-3"
+              class="w-full block min-w-0 bg-white border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 t-small outline-none resize-none placeholder:text-slate-400 focus:border-blue-500 mb-3"
               placeholder="더 궁금한 점을 물어보세요">${esc(draft("followup"))}</textarea>
             <button type="button" onclick="Actions.askFollowUp()"
-              class="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold t-small flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
+              class="w-full py-3.5 rounded-xl bg-white border border-slate-300 hover:bg-blue-50 text-slate-700 font-bold t-small flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
               <i data-lucide="send" class="w-5 h-5"></i>추가 질문하기
             </button>
           </section>
